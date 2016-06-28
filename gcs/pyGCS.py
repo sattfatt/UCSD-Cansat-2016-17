@@ -1,0 +1,1005 @@
+from PyQt4 import QtCore, QtGui, QtCore
+from PyQt4.QtGui import *
+import multiprocessing
+import time
+import serial
+from multiprocessing import Queue as Q
+import Queue
+from multiprocessing import Process
+import random
+from functools import partial
+import pyqtgraph as pg
+import numpy as np
+import pyqtgraph.opengl as gl
+import math
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+ALTITUDE_COLOR = "#B0171F"
+PRESSURE_COLOR = "#9400D3"
+TEMPERATURE_COLOR = "#473C8B"
+SPEED_COLOR = "#4169E1"
+VOLTAGE_COLOR = "#00688B"
+GPSSPD_COLOR = "#008080"
+
+BACKGROUND = "#000000"
+PLOT_BACKGROUND = "#EBEBEB"
+SYMBOL_PEN = "#000000"
+BORDER_PEN = "#000000"
+LABEL_COLOR = "#FFFFFF"
+
+IMG_TIMEOUT = 30
+JPG_NAME = "recieved.jpg"
+CAM_CMD = "c\n"
+RELEASE_CMD = "r\n"
+TEAM_ID = ""  # Make sure this is set to the first field or no data will be logged.
+SERIAL_LOG_NAME = "Data.txt"
+DEFAULT_HEADER = "TeamID, Time, Packet, Altitude, Pressure, Airspeed, Temperature, Voltage, Latitude, " \
+                 "Longitude, GPSAlt, Satellites, ImageTime, ImageCount\r\n"
+AXIS_PEN = "#000000"
+
+serialDataQ = Q()
+serialStateQ = Q()
+serialSendQ = Q()
+
+GraphParam = ""
+PortSet = False
+SetAxis = False
+SerialCommsStatus = "Stop Serial"
+SerialThreadStart = False
+scroll = True
+
+try:
+    _fromUtf8 = QtCore.QString.fromUtf8
+except AttributeError:
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+
+
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
+
+
+class Ui_MainWindow(QMainWindow):
+    def __init__(self, parent=None):
+        super(Ui_MainWindow, self).__init__(parent)
+        self.showplot = ""
+        self.plotLoad = False
+        self.serialCommsIndicator = "End Serial"
+        self.threadStart = False
+        self.logName = "Data.txt"
+        self.timeCol = 0
+        self.data = self.fileparse(SERIAL_LOG_NAME)
+        self.colors = self.parsecolors()
+        self.actionsView = []
+        self.plots = []
+        self.multiplot = []
+        self.port = ""
+        self.ran = False
+        self.ran2 = False
+        self.imgPathSet = False
+        self.imgPath = ""
+        self.runIterator = 0
+
+        self.minrange = 0
+        self.maxrange = 0
+        self.displaypoints = 0
+
+        self.setupUi()
+        self.show()
+        self.warningdialog("Enter a Port to Start Serial comms")
+        # Start the serial logger...
+        self.processstart(self.logger, (SERIAL_LOG_NAME, serialDataQ,), False)
+
+        self.symbol = 'o'
+
+        self.timer = pg.QtCore.QTimer()
+        self.timer.timeout.connect(partial(self.plotloop))
+        self.timer.start(500)
+
+        self.timer2 = pg.QtCore.QTimer()
+        self.timer2.timeout.connect(self.update3D)
+        self.timer2.start(1000)
+
+        self.graphicsView.setBackground(PLOT_BACKGROUND)
+        self.graphicsView.ci.setBorder(BORDER_PEN)
+        self.plainTextEditTerm.setEnabled(False)
+        ##
+
+        self.setup3D()
+        ##
+        global GraphParam
+        GraphParam = self.plots[0].name
+        #self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
+        #self.tabWidgetPlot.setStyleSheet('QTabWidget>QWidget>QWidget{background: '+BACKGROUND+';}')
+
+    def setupUi(self):
+        self.setObjectName(_fromUtf8("MainWindow"))
+        self.resize(1234, 877)
+        self.centralwidget = QtGui.QWidget(self)
+        self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
+        self.gridLayout = QtGui.QGridLayout(self.centralwidget)
+        self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
+        self.tabWidgetPlot = QtGui.QTabWidget(self.centralwidget)
+        self.tabWidgetPlot.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        self.tabWidgetPlot.setObjectName(_fromUtf8("tabWidgetPlot"))
+        self.tab = QtGui.QWidget()
+        self.tab.setObjectName(_fromUtf8("tab"))
+        self.gridLayout_2 = QtGui.QVBoxLayout(self.tab)
+        self.gridLayout_2.setObjectName(_fromUtf8("gridLayout_2"))
+        # Plot widget
+        self.graphicsView = pg.GraphicsLayoutWidget(self.tab)
+        self.graphicsView.setObjectName(_fromUtf8("graphicsView"))
+        self.gridLayout_2.addWidget(self.graphicsView)
+        self.tabWidgetPlot.addTab(self.tab, _fromUtf8(""))
+        self.tab_2 = QtGui.QWidget()
+        self.tab_2.setObjectName(_fromUtf8("tab_2"))
+
+        #self.gridwidget_pic = QtGui.QWidget(self.tab_2)
+        self.gridLayout_pic = QtGui.QGridLayout(self.tab_2)
+        self.gridLayout_pic.setObjectName(_fromUtf8("gridLayout_pic"))
+        self.imgView = QtGui.QLabel()
+        self.imgView.setObjectName(_fromUtf8("imgView"))
+        self.imgView.setAlignment(QtCore.Qt.AlignCenter)
+        self.imgScrollArea = QtGui.QScrollArea(self.tab_2)
+        self.imgScrollArea.setWidget(self.imgView)
+        self.gridLayout_pic.addWidget(self.imgScrollArea)
+        # Picture
+
+        #self.gridLayout_pic.addWidget(self.imgView)
+        self.imgScrollArea.setWidgetResizable(True)
+
+
+
+
+        self.tabWidgetPlot.addTab(self.tab_2, _fromUtf8(""))
+        self.gridLayout.addWidget(self.tabWidgetPlot, 3, 0, 1, 1)
+        self.setCentralWidget(self.centralwidget)
+        self.menubar = QtGui.QMenuBar(self)
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1234, 26))
+        self.menubar.setObjectName(_fromUtf8("menubar"))
+        self.menuFile = QtGui.QMenu(self.menubar)
+        self.menuFile.setObjectName(_fromUtf8("menuFile"))
+        self.menuSerial = QtGui.QMenu(self.menubar)
+        self.menuSerial.setObjectName(_fromUtf8("menuSerial"))
+        self.menuView = QtGui.QMenu(self.menubar)
+        self.menuView.setObjectName(_fromUtf8("menuView"))
+        self.setMenuBar(self.menubar)
+        self.statusbar = QtGui.QStatusBar(self)
+        self.statusbar.setObjectName(_fromUtf8("statusbar"))
+        self.setStatusBar(self.statusbar)
+        self.toolBar = QtGui.QToolBar(self)
+        self.toolBar.setObjectName(_fromUtf8("toolBar"))
+        self.addToolBar(QtCore.Qt.TopToolBarArea, self.toolBar)
+
+        self.dockWidgetCommand = QtGui.QDockWidget(self)
+        self.dockWidgetCommand.setObjectName(_fromUtf8("dockWidgetCommand"))
+        self.dockWidgetContents_4 = QtGui.QWidget()
+        self.dockWidgetContents_4.setObjectName(_fromUtf8("dockWidgetContents_4"))
+        self.verticalLayout = QtGui.QVBoxLayout(self.dockWidgetContents_4)
+        self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
+        self.groupBoxCommand = QtGui.QGroupBox(self.dockWidgetContents_4)
+        self.groupBoxCommand.setObjectName(_fromUtf8("groupBoxCommand"))
+        self.gridLayout_7 = QtGui.QGridLayout(self.groupBoxCommand)
+        self.gridLayout_7.setObjectName(_fromUtf8("gridLayout_7"))
+        self.gridLayoutCommand = QtGui.QGridLayout()
+        self.gridLayoutCommand.setObjectName(_fromUtf8("gridLayoutCommand"))
+        self.pushButtonExtra = QtGui.QPushButton(self.groupBoxCommand)
+        self.pushButtonExtra.setObjectName(_fromUtf8("pushButtonExtra"))
+        self.gridLayoutCommand.addWidget(self.pushButtonExtra, 1, 0, 1, 1)
+        # Camera button
+        self.pushButtonCam = QtGui.QPushButton(self.groupBoxCommand)
+        self.pushButtonCam.setObjectName(_fromUtf8("pushButtonCam"))
+
+        self.gridLayoutCommand.addWidget(self.pushButtonCam, 0, 0, 1, 1)
+        # Release Button
+        self.pushButtonRelease = QtGui.QPushButton(self.groupBoxCommand)
+        self.pushButtonRelease.setObjectName(_fromUtf8("pushButtonRelease"))
+
+        self.gridLayoutCommand.addWidget(self.pushButtonRelease, 0, 1, 1, 1)
+        self.pushButtonExtra_2 = QtGui.QPushButton(self.groupBoxCommand)
+        self.pushButtonExtra_2.setObjectName(_fromUtf8("pushButtonExtra_2"))
+        self.gridLayoutCommand.addWidget(self.pushButtonExtra_2, 1, 1, 1, 1)
+        self.gridLayout_7.addLayout(self.gridLayoutCommand, 0, 0, 1, 1)
+        self.verticalLayout.addWidget(self.groupBoxCommand)
+        self.groupBoxParam = QtGui.QGroupBox(self.dockWidgetContents_4)
+        self.groupBoxParam.setObjectName(_fromUtf8("groupBoxParam"))
+        self.verticalLayout_2 = QtGui.QVBoxLayout(self.groupBoxParam)
+        self.verticalLayout_2.setObjectName(_fromUtf8("verticalLayout_2"))
+        self.gridLayoutSend = QtGui.QGridLayout()
+        self.gridLayoutSend.setObjectName(_fromUtf8("gridLayoutSend"))
+        #img command
+        self.groupBoxImage = QtGui.QGroupBox(self.dockWidgetContents_4)
+        self.groupBoxImage.setObjectName(_fromUtf8("groupBoxImage"))
+        self.verticalLayout_3 = QtGui.QVBoxLayout(self.groupBoxImage)
+        self.pushButtonImg = QtGui.QPushButton()
+        self.verticalLayout_3.addWidget(self.pushButtonImg)
+        # Entry for parameters
+        self.lineEditParam = QtGui.QLineEdit(self.groupBoxParam)
+        self.lineEditParam.setObjectName(_fromUtf8("lineEditParam"))
+
+        self.gridLayoutSend.addWidget(self.lineEditParam, 0, 1, 1, 1)
+        # Param Send button
+        self.pushButtonParam = QtGui.QPushButton(self.groupBoxParam)
+        self.pushButtonParam.setObjectName(_fromUtf8("pushButtonParam"))
+
+        self.gridLayoutSend.addWidget(self.pushButtonParam, 0, 0, 1, 1)
+        self.verticalLayout_2.addLayout(self.gridLayoutSend)
+        spacerItem = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        self.verticalLayout_2.addItem(spacerItem)
+        self.verticalLayout.addWidget(self.groupBoxImage)
+        self.verticalLayout.addWidget(self.groupBoxParam)
+
+        self.dockWidgetCommand.setWidget(self.dockWidgetContents_4)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea(2), self.dockWidgetCommand)
+        self.dockWidgetTerm = QtGui.QDockWidget(self)
+        self.dockWidgetTerm.setObjectName(_fromUtf8("dockWidgetTerm"))
+        self.dockWidgetContents_6 = QtGui.QWidget()
+        self.dockWidgetContents_6.setObjectName(_fromUtf8("dockWidgetContents_6"))
+        self.gridLayout_4 = QtGui.QGridLayout(self.dockWidgetContents_6)
+        self.gridLayout_4.setObjectName(_fromUtf8("gridLayout_4"))
+        self.verticalLayoutTerm = QtGui.QVBoxLayout()
+        self.verticalLayoutTerm.setObjectName(_fromUtf8("verticalLayoutTerm"))
+
+        # Button for pausing the terminal
+        self.toolButtonPauseTerm = QtGui.QToolButton(self.dockWidgetContents_6)
+        self.toolButtonPauseTerm.setObjectName(_fromUtf8("toolButtonPauseTerm"))
+
+        self.verticalLayoutTerm.addWidget(self.toolButtonPauseTerm)
+        spacerItem1 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        self.verticalLayoutTerm.addItem(spacerItem1)
+        self.gridLayout_4.addLayout(self.verticalLayoutTerm, 0, 1, 1, 1)
+
+        # Terminal text box
+        self.plainTextEditTerm = QtGui.QPlainTextEdit(self.dockWidgetContents_6)
+        self.plainTextEditTerm.setObjectName(_fromUtf8("plainTextEditTerm"))
+
+        self.gridLayout_4.addWidget(self.plainTextEditTerm, 0, 0, 1, 1)
+        self.dockWidgetTerm.setWidget(self.dockWidgetContents_6)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea(8), self.dockWidgetTerm)
+        self.dockWidgetPlotControl = QtGui.QDockWidget(self)
+        self.dockWidgetPlotControl.setObjectName(_fromUtf8("dockWidgetPlotControl"))
+        self.dockWidgetContents_7 = QtGui.QWidget()
+        self.dockWidgetContents_7.setObjectName(_fromUtf8("dockWidgetContents_7"))
+        self.gridLayout_8 = QtGui.QGridLayout(self.dockWidgetContents_7)
+        self.gridLayout_8.setObjectName(_fromUtf8("gridLayout_8"))
+        self.groupBoxPlotControl = QtGui.QGroupBox(self.dockWidgetContents_7)
+        self.groupBoxPlotControl.setObjectName(_fromUtf8("groupBoxPlotControl"))
+        self.gridLayout_9 = QtGui.QGridLayout(self.groupBoxPlotControl)
+        self.gridLayout_9.setObjectName(_fromUtf8("gridLayout_9"))
+        self.horizontalLayoutControls_3 = QtGui.QHBoxLayout()
+        self.horizontalLayoutControls_3.setObjectName(_fromUtf8("horizontalLayoutControls_3"))
+
+        # #-------------------------------------------
+        self.GLWidget = gl.GLViewWidget()
+        self.dockWidgetOpenGL = QtGui.QDockWidget(self)
+        self.dockWidgetOpenGL.setWidget(self.GLWidget)
+        self.dockWidgetOpenGL.setObjectName(_fromUtf8("dockWidgetOpenGL"))
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea,self.dockWidgetOpenGL)
+
+        # #-------------------------------------------
+        # Spin box for choosing how many points to display IRT
+        self.spinBoxPoints = QtGui.QSpinBox(self.groupBoxPlotControl)
+        self.spinBoxPoints.setObjectName(_fromUtf8("spinBoxPoints"))
+
+        self.horizontalLayoutControls_3.addWidget(self.spinBoxPoints)
+
+        # Button for setting the current spinbox value
+        self.pushButtonSetPoints = QtGui.QPushButton(self.groupBoxPlotControl)
+        self.pushButtonSetPoints.setObjectName(_fromUtf8("pushButtonSetPoints"))
+
+        self.horizontalLayoutControls_3.addWidget(self.pushButtonSetPoints)
+        self.gridLayout_9.addLayout(self.horizontalLayoutControls_3, 7, 0, 1, 1)
+        self.horizontalLayoutControls_2 = QtGui.QHBoxLayout()
+        self.horizontalLayoutControls_2.setObjectName(_fromUtf8("horizontalLayoutControls_2"))
+
+        # Max slider
+        self.horizontalSliderMax = QtGui.QSlider(self.groupBoxPlotControl)
+        self.horizontalSliderMax.setOrientation(QtCore.Qt.Horizontal)
+        self.horizontalSliderMax.setObjectName(_fromUtf8("horizontalSliderMax"))
+        self.horizontalLayoutControls_2.addWidget(self.horizontalSliderMax)
+
+        # Text input for Max range value
+        self.lineEditMax = QtGui.QLineEdit(self.groupBoxPlotControl)
+        self.lineEditMax.setObjectName(_fromUtf8("lineEditMax"))
+
+        self.horizontalLayoutControls_2.addWidget(self.lineEditMax)
+        self.gridLayout_9.addLayout(self.horizontalLayoutControls_2, 4, 0, 1, 1)
+
+        # Button for setting text input for Max Range
+        self.pushButtonSetRange = QtGui.QPushButton(self.groupBoxPlotControl)
+        self.pushButtonSetRange.setObjectName(_fromUtf8("pushButtonSetRange"))
+
+        self.gridLayout_9.addWidget(self.pushButtonSetRange, 5, 0, 1, 1)
+        self.labelMax = QtGui.QLabel(self.groupBoxPlotControl)
+        self.labelMax.setObjectName(_fromUtf8("labelMax"))
+        self.gridLayout_9.addWidget(self.labelMax, 3, 0, 1, 1)
+        self.labelMin = QtGui.QLabel(self.groupBoxPlotControl)
+        self.labelMin.setObjectName(_fromUtf8("labelMin"))
+        self.gridLayout_9.addWidget(self.labelMin, 0, 0, 1, 1)
+        self.horizontalLayoutControls = QtGui.QHBoxLayout()
+        self.horizontalLayoutControls.setObjectName(_fromUtf8("horizontalLayoutControls"))
+
+        # Slider for minimum value
+        self.horizontalSliderMin = QtGui.QSlider(self.groupBoxPlotControl)
+
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.horizontalSliderMin.sizePolicy().hasHeightForWidth())
+        self.horizontalSliderMin.setSizePolicy(sizePolicy)
+        self.horizontalSliderMin.setOrientation(QtCore.Qt.Horizontal)
+        self.horizontalSliderMin.setObjectName(_fromUtf8("horizontalSliderMin"))
+        self.horizontalLayoutControls.addWidget(self.horizontalSliderMin)
+
+        # Min range text entry
+        self.lineEditMin = QtGui.QLineEdit(self.groupBoxPlotControl)
+
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.lineEditMin.sizePolicy().hasHeightForWidth())
+        self.lineEditMin.setSizePolicy(sizePolicy)
+        self.lineEditMin.setObjectName(_fromUtf8("lineEditMin"))
+        self.horizontalLayoutControls.addWidget(self.lineEditMin)
+        self.gridLayout_9.addLayout(self.horizontalLayoutControls, 1, 0, 1, 1)
+        self.labelPoints = QtGui.QLabel(self.groupBoxPlotControl)
+        self.labelPoints.setObjectName(_fromUtf8("labelPoints"))
+        self.gridLayout_9.addWidget(self.labelPoints, 6, 0, 1, 1)
+        spacerItem2 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        self.gridLayout_9.addItem(spacerItem2, 8, 0, 1, 1)
+        self.gridLayout_8.addWidget(self.groupBoxPlotControl, 0, 0, 1, 1)
+        self.dockWidgetPlotControl.setWidget(self.dockWidgetContents_7)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea(2), self.dockWidgetPlotControl)
+        self.actionExit = QtGui.QAction(self)
+        self.actionExit.setObjectName(_fromUtf8("actionExit"))
+        self.actionSave_Figure = QtGui.QAction(self)
+        self.actionSave_Figure.setObjectName(_fromUtf8("actionSave_Figure"))
+        self.actionPort = QtGui.QAction(self)
+        self.actionPort.setObjectName(_fromUtf8("actionPort"))
+        self.actionStart_Comms = QtGui.QAction(self)
+        self.actionStart_Comms.setObjectName(_fromUtf8("actionStart_Comms"))
+        self.actionPause_Comms = QtGui.QAction(self)
+        self.actionPause_Comms.setObjectName(_fromUtf8("actionPause_Comms"))
+        self.actionEnd_Comms = QtGui.QAction(self)
+        self.actionEnd_Comms.setObjectName(_fromUtf8("actionEnd_Comms"))
+        self.menuFile.addAction(self.actionSave_Figure)
+        self.menuFile.addSeparator()
+        self.menuFile.addAction(self.actionExit)
+        self.menuSerial.addAction(self.actionPort)
+        self.menuSerial.addSeparator()
+        self.menuSerial.addAction(self.actionStart_Comms)
+        self.menuSerial.addAction(self.actionPause_Comms)
+        self.menuSerial.addSeparator()
+        self.menuSerial.addAction(self.actionEnd_Comms)
+        self.menubar.addAction(self.menuFile.menuAction())
+        self.menubar.addAction(self.menuSerial.menuAction())
+        self.menubar.addAction(self.menuView.menuAction())
+
+        self.retranslateUi()
+        self.tabWidgetPlot.setCurrentIndex(0)
+        QtCore.QMetaObject.connectSlotsByName(self)
+
+        self.iniview()
+        self.iniserial()
+        self.inicommand()
+
+    def retranslateUi(self):
+        self.setWindowTitle(_translate("MainWindow", "qtGCS 1.0 Beta", None))
+        self.tabWidgetPlot.setTabText(self.tabWidgetPlot.indexOf(self.tab), _translate("MainWindow", "Plot", None))
+        #self.imgView.setText(_translate("MainWindow", "Picture Label", None))
+        self.tabWidgetPlot.setTabText(self.tabWidgetPlot.indexOf(self.tab_2), _translate("MainWindow", "Image", None))
+        self.menuFile.setTitle(_translate("MainWindow", "File", None))
+        self.menuSerial.setTitle(_translate("MainWindow", "Serial", None))
+        self.menuView.setTitle(_translate("MainWindow", "View", None))
+        self.toolBar.setWindowTitle(_translate("MainWindow", "toolBar", None))
+        self.dockWidgetCommand.setWindowTitle(_translate("MainWindow", "Command", None))
+        self.groupBoxCommand.setTitle(_translate("MainWindow", "Quick Commands", None))
+        self.pushButtonExtra.setText(_translate("MainWindow", "Extra 1", None))
+        self.pushButtonCam.setText(_translate("MainWindow", "Snapshot", None))
+        self.pushButtonRelease.setText(_translate("MainWindow", "Release", None))
+        self.pushButtonExtra_2.setText(_translate("MainWindow", "Extra 2", None))
+        self.groupBoxParam.setTitle(_translate("MainWindow", "Param Send", None))
+        self.groupBoxImage.setTitle(_translate("MainWindow","Image",None))
+        self.pushButtonParam.setText(_translate("MainWindow", "Send", None))
+        self.dockWidgetTerm.setWindowTitle(_translate("MainWindow", "Terminal Out", None))
+        self.toolButtonPauseTerm.setText(_translate("MainWindow", "...", None))
+        self.dockWidgetPlotControl.setWindowTitle(_translate("MainWindow", "Plot Control", None))
+        self.dockWidgetOpenGL.setWindowTitle(_translate("MainWindow","OpenGL",None))
+        self.groupBoxPlotControl.setTitle(_translate("MainWindow", "Plot Controls", None))
+        self.pushButtonSetPoints.setText(_translate("MainWindow", "Set", None))
+        self.pushButtonSetRange.setText(_translate("MainWindow", "Set", None))
+        self.labelMax.setText(_translate("MainWindow", "Max:", None))
+        self.labelMin.setText(_translate("MainWindow", "Min:", None))
+        self.labelPoints.setText(_translate("MainWindow", "Points:", None))
+        self.actionExit.setText(_translate("MainWindow", "Exit", None))
+        self.actionSave_Figure.setText(_translate("MainWindow", "Save Figure", None))
+        self.actionPort.setText(_translate("MainWindow", "Port", None))
+        self.actionStart_Comms.setText(_translate("MainWindow", "Start Comms", None))
+        self.actionPause_Comms.setText(_translate("MainWindow", "Pause Comms", None))
+        self.actionEnd_Comms.setText(_translate("MainWindow", "End Comms", None))
+        self.pushButtonImg.setText(_translate("MainWindow", "Load Image", None))
+
+    def iniview(self):
+        for i, list in enumerate(self.data):
+            if list[0] == "Time" or list[0] == "time":  # get xaxis values column
+                self.timeCol = i
+            # add to menu
+            self.actionsView.append(QtGui.QAction(self))
+            self.actionsView[i].setText(_translate("MainWindow", list[0], None))
+            self.menuView.addAction(self.actionsView[i])
+            self.plots.append(plotObjs(list[0], self.colors[random.randrange(0, len(self.colors), 1)]))
+            self.actionsView[i].triggered.connect(partial(self.changedisplay, self.plots[i].name))
+        self.actionViewAll = QtGui.QAction(self)
+        self.actionViewAll.setText(_translate("MainWindow","All", None))
+        self.menuView.addAction(self.actionViewAll)
+        self.actionViewAll.triggered.connect(partial(self.changedisplay,"All"))
+
+    def iniserial(self):
+        self.actionPort.triggered.connect(partial(self.serialmenuconnect, 1))
+        self.actionStart_Comms.triggered.connect(partial(self.serialmenuconnect, 2))
+        self.actionPause_Comms.triggered.connect(partial(self.serialmenuconnect, 3))
+        self.actionEnd_Comms.triggered.connect(partial(self.serialmenuconnect, 4))
+
+
+    def inicommand(self):
+        self.pushButtonCam.clicked.connect(partial(self.paramsend, CAM_CMD))
+        self.pushButtonRelease.clicked.connect(partial(self.paramsend, RELEASE_CMD))
+        self.toolButtonPauseTerm.clicked.connect(self.scrollterm)
+        self.pushButtonSetRange.clicked.connect(self.setaxisbool)
+        self.pushButtonSetPoints.clicked.connect(self.setaxisbool)
+        self.pushButtonImg.clicked.connect(self.loadimage)
+        self.pushButtonParam.clicked.connect(partial(self.paramsend,"p"))
+
+    def serialmenuconnect(self, case):
+        print(case)
+        if case == 1:
+            while (True):
+                self.port, choice = self.inputdialog("Port", "Input Port (/dev/tty or COM)")
+                try:
+                    test = serial.Serial(port=self.port)
+                    test.close()
+                    global PortSet
+                    PortSet = True
+                    print(PortSet)
+                    break
+                except:
+                    if (not choice):
+                        global PortSet
+                        PortSet = False
+                        return
+                    else:
+                        self.warningdialog("Not a valid port, try again.")
+                        global PortSet
+                        PortSet = False
+        elif case == 2 and PortSet:
+            serialStateQ.put("Start Serial")
+            self.processstart(self.serialcomms, (self.port,), False)
+            print("starting serial...")
+        elif case == 3 and PortSet:
+            serialStateQ.put("Stop Serial")
+        elif case == 4 and PortSet:
+            serialStateQ.put("End Serial")
+        else:
+            self.warningdialog("Need to enter valid port!")
+
+    def inibuttons(self):
+        pass
+
+    def logger(self, filename, queue):
+        print("Logger process starting...")
+        while (True):
+            try:
+                data = queue.get(0)
+                print(data)
+                f = open(filename, mode='a+')
+                f.write(data)
+                f.close()
+                print(data)
+            except Queue.Empty:
+                pass
+        print("Logger process end.")
+
+    def processstart(self, method, args, joining):
+        # args needs to be a tuple.
+        p = Process(target=method, args=args)
+        p.daemon = True
+        p.start()
+        if (joining):
+            p.join()
+
+    def serialcomms(self, port):
+        try:
+            print("Serial Thread start")
+            serialObj = serial.Serial(port=port,
+                                      baudrate=57600,
+                                      parity=serial.PARITY_NONE,
+                                      stopbits=serial.STOPBITS_ONE,
+                                      bytesize=serial.EIGHTBITS,
+                                      timeout=.05,
+                                      rtscts=0,
+                                      xonxoff=0,
+                                      dsrdtr=0)
+            serialObj.flushInput()
+            serialObj.flushOutput()
+            run = 0
+            global SerialThreadStart
+            SerialThreadStart = True
+            while (True):
+                # print("looping")
+                try:
+                    serState = serialStateQ.get()
+                    if (serState):
+                        print(serState)
+                        # print(serState)
+                except serialStateQ.empty:
+                    # print(serState + 'emptyq')
+                    pass
+                if (serState == "End Serial"):
+                    serialObj.close()
+                    print("Serial Comms Ended Successfully")
+                    serialSendQ.put('end')
+                    while (serialStateQ.empty == False):
+                        print('...')
+                        serialStateQ.get()
+                    print('Process End')
+                    global SerialThreadStart
+                    SerialThreadStart = False
+                    return
+                if (serialSendQ.empty() == False):
+                    temp = serialSendQ.get(0)
+                    for i in range(50):
+                        serialObj.write(temp)
+                        time.sleep(0.02)
+                try:
+                    if (serialObj.inWaiting() and serState == "Start Serial"):
+                        serialData = serialObj.readline()
+                        print(repr(serialData))
+                        # serialObj.flushInput()
+                        if (
+                                    serialData == "sending picture\n" or serialData == "sending picture" or serialData == "sending picture\r\n"):
+                            run += 1
+                            print(run)
+                            serialData = ""
+                            length = serialObj.readline()
+                            length = length.rstrip()
+                            print(repr(length))
+                            img = open(JPG_NAME, "w")
+                            imgBytelist = []
+                            timePrev = time.time()
+                            while (True):
+                                if (serialObj.inWaiting()):
+                                    dat = serialObj.read()
+                                    img.write(dat)
+                                    imgBytelist.append(dat)
+                                    print (len(imgBytelist), ' Bytes ')
+                                    try:
+                                        if (len(imgBytelist) > int(length) or (time.time() - timePrev) >= IMG_TIMEOUT):
+                                            print("Image Recieved")
+                                            serialObj.flushInput()
+                                            serialObj.flushOutput()
+                                            img.close()
+                                            break
+                                    except:
+                                        img.close()
+                                        print(sys.exc_info()[0])
+                                        break
+                        if (serialData.startswith(TEAM_ID)):
+                            serialDataQ.put(serialData, 0)
+                            serialObj.flushInput()
+                except serial.SerialException:
+                    print("Serial Failed")
+                    return
+        except serial.SerialException:
+            print("Serial Failed")
+            global SerialThreadStart
+            SerialThreadStart = False
+            return
+
+    def fileparse(self, log):
+        try:
+            fo2 = open(log, "r")
+        except:
+            fo2 = open(log, "a+")
+            fo2.write(DEFAULT_HEADER)
+        getData = fo2.read()
+        fo2.close()
+        lines = getData.split('\r')
+        # Headers = parse_serial(lines[0])
+        Headers = lines[0].split(",")
+        # print(Headers)
+        data = []
+        for i, header in enumerate(Headers):
+            # poplates data list with lists
+            data.append([])
+        # print(data)
+        for i, line in enumerate(lines):
+            if (len(Headers) == len(line.split(","))):
+                # print(line)
+                # dataPoints = parse_serial(line)
+                dataPoints = line.split(",")
+                # print(dataPoints)
+                # populates dataPoints with values in each line
+                for j, list in enumerate(data):
+                    # populates sublists of each header with corresponding points of data.(2D array kinda)
+                    data[j - 1].append(dataPoints[j - 1])
+                    # print(data)
+                    # #######-------------------########## working here.
+
+        return data
+
+    def saveFigure(self):
+        pass
+
+    def changedisplay(self, WhatDisp):
+        # method that changes the displayed plot on the graph frame
+        global GraphParam
+        GraphParam = WhatDisp
+        print("changing to: " + str(GraphParam))
+        self.plotloop()
+
+    def serialcontrol(self):
+        global PortSet
+        global SerialCommsStatus
+
+        if PortSet == False:
+            pass
+
+    def SendPacket(self, packet):
+        if (serialSendQ.empty() == True):
+            serialSendQ.put(packet, 0)
+        else:
+            self.warningdialog("Still sending previous packet!")
+
+    def warningdialog(self, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setWindowTitle("WARNING!")
+        ret = msg.exec_()
+
+    def inputdialog(self, title, message):
+        text, choice = QInputDialog.getText(self, title, message)
+        print("You inputted: " + text)
+        return text, choice
+
+    def plotloop(self):
+        self.data = self.fileparse(SERIAL_LOG_NAME)
+        if GraphParam is not "All" :
+            if not self.ran2:
+                self.ran2 = True
+                self.graphicsView.clear()
+                self.plotobj = self.graphicsView.addPlot()
+                self.ran2 = True
+                self.plotobj.showGrid(True, True, alpha=1)
+                ax = self.plotobj.getAxis("bottom")
+                ax.setPen(AXIS_PEN)
+                ax = self.plotobj.getAxis("left")
+                ax.setPen(AXIS_PEN)
+            for i, list in enumerate(self.data):
+                if GraphParam == list[0]:
+                    self.plotobj.plot(np.array(self.data[self.timeCol][1:]).astype(np.float),
+                                           np.array(list[1:]).astype(np.float),
+                                           clear=True,
+                                           title=self.plots[i].name,
+                                           pen=self.plots[i].color,
+                                           symbol=self.symbol,
+                                           symbolPen=SYMBOL_PEN,
+                                           symbolBrush=self.plots[i].color)
+                    self.plotobj.setTitle(self.plots[i].name, color=self.plots[i].color)
+                    # Set axis limits
+                    self.setxaxis(self.plotobj)
+            self.ran = False
+        elif GraphParam=="All":
+            if not self.ran:
+                self.ran = True
+                self.graphicsView.clear()
+                self.multiplot = []
+                y = 0
+                numlist = len(self.plots)
+                for i, list in enumerate(self.data):
+                    y = int(math.ceil(math.sqrt(numlist)))
+                    x = int(math.ceil(float(numlist - y) / float(y))) + 1
+                j = 0
+                for i in range(numlist):
+                    k = i % y
+                    temp = self.graphicsView.addPlot(row=j, col=k, rowspan=1, colspan=1)
+                    self.multiplot.append(temp)
+                    if(k == (y-1)):
+                        j += 1
+                    self.multiplot[i].showGrid(True, True, alpha=1)
+                    ax1 = self.multiplot[i].getAxis("left")
+                    ax1.setPen(AXIS_PEN)
+                    ax = self.multiplot[i].getAxis("bottom")
+                    ax.setPen(AXIS_PEN)
+            for k, col in enumerate(self.data):
+                self.multiplot[k].plot(np.array(self.data[self.timeCol][1:]).astype(np.float),
+                                       np.array(col[1:]).astype(np.float),
+                                       clear=True,
+                                       title=self.plots[k].name,
+                                       pen=self.plots[k].color,
+                                       symbol=self.symbol,
+                                       symbolPen=SYMBOL_PEN,
+                                       symbolBrush=self.plots[k].color)
+                self.multiplot[k].setTitle(self.plots[k].name, color=self.plots[k].color)
+                self.setxaxis(self.multiplot[k],len(self.data))
+
+            self.ran2 = False
+
+    def paramsend(self,cmd):
+        if(serialSendQ.empty()):
+            if(cmd == "p"):
+                cmd = str(self.lineEditParam.text()) + '\n'
+            print("Sending: " + cmd)
+            serialSendQ.put(cmd)
+        else:
+            self.warningdialog("Still sending previous packet!")
+
+    def parsecolors(self):
+        default = ["#B0171F","#9400D3","#473C8B","#4169E1","#00688B","#008080"]
+        try:
+            f = open("colors.cfg","r")
+            data = f.read()
+            list = data.split("\n")
+            counter = 0
+            while(True):
+                counterprev = counter
+                for i , val in enumerate(list):
+                    if val == "":
+                        counter+=1
+                        list.remove(val)
+                if(counterprev == counter):
+                    break
+
+
+            f.close()
+            return list
+        except:
+            return default
+
+    def choosecolorsrand(self,list):
+        randlist = []
+        index = []
+        for i in range(len(list)):
+            index.append(i)
+        if(len(list)>=len(self.data)):
+            for i, col in enumerate(self.data):
+                randidx = random.choice(index)
+                randlist.append(list[randidx])
+                index.remove(randidx)
+
+    def scrollterm(self):
+        if(not scroll):
+            self.plainTextEditTerm.moveCursor(QtGui.QTextCursor.End)
+            self.plainTextEditTerm.setEnabled(False)
+            #self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
+        else:
+            self.plainTextEditTerm.setEnabled(True)
+        global scroll
+        scroll = not scroll
+
+    def setxaxis(self, widget, iterate = 1):
+        global SetAxis
+        if SetAxis:
+            widget.enableAutoRange(True,y=1)
+            if self.runIterator != iterate:
+                try:
+                    self.minrange = int(self.lineEditMin.text())
+                    self.maxrange = int(self.lineEditMax.text())
+                except:
+                    if(self.lineEditMin.text() == ""):
+                        self.minrange = 0
+                        self.lineEditMin.setText("0")
+                    if(self.lineEditMax.text() == ""):
+                        self.maxrange = 0
+                        self.lineEditMax.setText("0")
+                    #print("exception")
+                self.displaypoints = self.spinBoxPoints.value()
+                if(self.minrange == 0 and self.maxrange == 0 and self.displaypoints == 0) or (self.lineEditMin.text() == "" or self.lineEditMax.text() == ""):
+                    self.spinBoxPoints.setEnabled(True)
+                    widget.enableAutoRange(enable=True)
+                    #print(1)
+
+                elif(self.minrange != 0 and self.maxrange != 0 and self.displaypoints != 0) or (self.maxrange < self.minrange):
+                    self.warningdialog("This makes no sense! Use your brain.")
+                    self.spinBoxPoints.setValue(0)
+                    self.lineEditMax.clear()
+                    self.lineEditMin.clear()
+                    self.minrange = 0
+                    self.maxrange = 0
+                    widget.enableAutoRange(enable=True)
+                    #print(2)
+                elif (self.minrange or self.maxrange):
+                    self.spinBoxPoints.setEnabled(False)
+                    if self.lineEditMin.text() == "" and self.lineEditMax.text() == "":
+                        self.spinBoxPoints.setEnabled(True)
+                    widget.setXRange(self.minrange, self.maxrange, padding=0)
+                    #print(3)
+
+                elif self.displaypoints:
+                    widget.setXRange(int(self.data[self.timeCol][-self.displaypoints]),int(self.data[self.timeCol][-1]),padding=.001)
+                    widget.enableAutoRange(True, y=1)
+                    #print(4)
+                self.runIterator += 1
+            else:
+                self.runIterator = 0
+                SetAxis = False
+
+    def setaxisbool(self):
+        global SetAxis
+        SetAxis = True
+
+    def loadimage(self):
+        if(self.imgPathSet == False):
+            self.imgPath = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '/home')
+        else:
+            pass
+        f = Image.open(str(self.imgPath))
+        f.save("tempimg.png")
+        pixmap = QtGui.QPixmap("tempimg.png")
+        #arr = np.array(f.getdata())
+        self.imgView.setPixmap(pixmap)
+
+    def setup3D(self):
+        self.GLWidget.setCameraPosition(distance=2, azimuth=-135)
+        self.grid1 = gl.GLGridItem()
+        self.ax1 = gl.GLAxisItem()
+        self.ax2 = gl.GLAxisItem()
+        self.ax3 = gl.GLAxisItem()
+
+        self.GLWidget.addItem(self.grid1)
+        self.GLWidget.addItem(self.ax1)
+        self.GLWidget.addItem(self.ax2)
+        self.GLWidget.addItem(self.ax3)
+
+        self.ax1.setSize(5, 5, 5)
+        self.ax2.setSize(5, 5, 5)
+        self.ax3.setSize(5, 5, 5)
+
+        self.ax2.rotate(180, 0, 1, 0)
+        self.ax3.rotate(180, 0, 0, 1)
+
+        self.grid1.translate(0,0,-0.1)
+        self.parseObj = OBJparser("arrow.obj")
+        self.verts = np.asarray(self.parseObj.vertices)
+        self.faces = []
+        for i in range(len(self.parseObj.faces)):
+            self.faces.append(self.parseObj.faces[i][0])
+        self.faces = np.asarray(self.faces)
+        self.verts = np.asarray(self.parseObj.vertices)
+
+        self.arrow = gl.GLMeshItem(vertexes=self.verts, faces=self.faces, smooth=False)
+        self.arrow.setGLOptions('opaque')
+        self.arrow.setShader('viewNormalColor')
+        self.GLWidget.addItem(self.arrow)
+
+        self.height = 0
+        self.xangle = 0
+        self.yangle = 0
+        self.zangle = 0
+        self.heightprev = 0
+        self.xangleprev = 0
+        self.yangleprev = 0
+        self.zangleprev = 0
+
+    def update3D(self):
+
+        self.ax1.translate(0, 0, -self.heightprev)
+        self.ax2.translate(0, 0, -self.heightprev)
+        self.ax3.translate(0, 0, -self.heightprev)
+        self.arrow.translate(0, 0, -self.heightprev)
+        self.arrow.rotate(-self.xangleprev, 1, 0, 0)
+        self.arrow.rotate(-self.yangleprev, 0, 1, 0)
+        self.arrow.rotate(-self.zangleprev, 0, 0, 1)
+
+        self.ax1.translate(0, 0, self.height)
+        self.ax2.translate(0, 0, self.height)
+        self.ax3.translate(0, 0, self.height)
+        self.arrow.translate(0, 0, self.height)
+        self.arrow.rotate(self.xangle, 1, 0, 0)
+        self.arrow.rotate(self.yangle, 0, 1, 0)
+        self.arrow.rotate(self.zangle, 0, 0, 1)
+
+        if self.heightprev != self.height:
+            self.heightprev = self.height
+        if self.xangleprev != self.xangle:
+            self.xangleprev = self.xangle
+        if self.yangleprev != self.yangle:
+            self.yangleprev = self.yangle
+        if self.zangleprev != self.zangle:
+            self.zangleprev = self.zangle
+
+
+class OBJparser:
+    def __init__(self, filename, swapyz=False):
+        """ Loads a Wavefront OBJ file. """
+        self.vertices = []
+        self.normals = []
+        self.texcoords = []
+        self.faces = []
+
+        material = None
+        for line in open(filename, "r"):
+            if line.startswith('#'): continue
+            values = line.split()
+            if not values: continue
+            if values[0] == 'v':
+                v = map(float, values[1:4])
+                if swapyz:
+                    v = v[0], v[2], v[1]
+                self.vertices.append(v)
+            elif values[0] == 'vn':
+                v = map(float, values[1:4])
+                if swapyz:
+                    v = v[0], v[2], v[1]
+                self.normals.append(v)
+            elif values[0] == 'vt':
+                self.texcoords.append(map(float, values[1:3]))
+            elif values[0] in ('usemtl', 'usemat'):
+                material = values[1]
+            elif values[0] == 'f':
+                face = []
+                texcoords = []
+                norms = []
+                for v in values[1:]:
+                    w = v.split('/')
+                    face.append(int(w[0]) - 1)
+                    if len(w) >= 2 and len(w[1]) > 0:
+                        texcoords.append(int(w[1]))
+                    else:
+                        texcoords.append(0)
+                    if len(w) >= 3 and len(w[2]) > 0:
+                        norms.append(int(w[2]))
+                    else:
+                        norms.append(0)
+                self.faces.append([face, norms, texcoords, material])
+
+
+class plotObjs:
+    def __init__(self, name, color):
+        self.name = name
+        self.color = color
+        self.unit = ""
+
+
+class TermRedirect():
+    def __init__(self, widget, oldobj):
+        self.widget = widget
+        self.oldobj = oldobj
+        self.index = 1
+        pass
+    def write(self, Str):
+        self.widget.setReadOnly(False)
+        #self.widget.setEnabled(False)
+        #self.widget.moveCursor(QtGui.QTextCursor.End)
+        global scroll
+        if scroll:
+            self.widget.moveCursor(QtGui.QTextCursor.End)
+        if Str != '\n':
+            self.widget.insertPlainText(str(self.index) + ": ")
+            self.index += 1
+        #self.oldobj.write(repr(Str))
+        self.widget.insertPlainText(Str)
+        self.widget.setReadOnly(True)
+        self.oldobj.write(Str)
+
+        pass
+    def flush(self):
+        pass
+
+from pyqtgraph import PlotWidget
+
+if __name__ == "__main__":
+    import sys
+    app = QtGui.QApplication(sys.argv)
+    ui = Ui_MainWindow()
+    oldstdout = sys.stdout
+    sys.stdout = TermRedirect(ui.plainTextEditTerm, oldstdout)
+    sys.exit(app.exec_())
