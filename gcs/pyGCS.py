@@ -1,6 +1,7 @@
 from PyQt4 import QtCore, QtGui, QtCore
 from PyQt4.QtGui import *
 import multiprocessing
+#import Vector
 import time
 import serial
 from multiprocessing import Queue as Q
@@ -65,6 +66,37 @@ except AttributeError:
     def _translate(context, text, disambig):
         return QtGui.QApplication.translate(context, text, disambig)
 
+## note any multiprocessing code needs to be top-level to work on windows. Has something to do with pickling
+## object methods. Object methods are not picked in windows.
+
+
+def processstart(method, args, joining):
+    # args needs to be a tuple.
+    p = Process(target=method, args=args)
+    p.daemon = True
+    p.start()
+    if (joining):
+        p.join()
+
+
+def logger(filename, queue):
+    print("Logger process starting...")
+    while (True):
+        try:
+            data = queue.get(0)
+            print(data)
+            f = open(filename, mode='a+')
+            f.write(data)
+            f.close()
+            print(data)
+        except Queue.Empty:
+            pass
+    print("Logger process end.")
+
+
+## end of multiprocessing code
+##--------------------------------------------------------------------------------------------------------------
+
 
 class Ui_MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -95,7 +127,7 @@ class Ui_MainWindow(QMainWindow):
         self.show()
         self.warningdialog("Enter a Port to Start Serial comms")
         # Start the serial logger...
-        self.processstart(self.logger, (SERIAL_LOG_NAME, serialDataQ,), False)
+        processstart(logger, (SERIAL_LOG_NAME, serialDataQ,), False)
 
         self.symbol = 'o'
 
@@ -447,7 +479,6 @@ class Ui_MainWindow(QMainWindow):
         self.actionPause_Comms.triggered.connect(partial(self.serialmenuconnect, 3))
         self.actionEnd_Comms.triggered.connect(partial(self.serialmenuconnect, 4))
 
-
     def inicommand(self):
         self.pushButtonCam.clicked.connect(partial(self.paramsend, CAM_CMD))
         self.pushButtonRelease.clicked.connect(partial(self.paramsend, RELEASE_CMD))
@@ -491,28 +522,6 @@ class Ui_MainWindow(QMainWindow):
 
     def inibuttons(self):
         pass
-
-    def logger(self, filename, queue):
-        print("Logger process starting...")
-        while (True):
-            try:
-                data = queue.get(0)
-                print(data)
-                f = open(filename, mode='a+')
-                f.write(data)
-                f.close()
-                print(data)
-            except Queue.Empty:
-                pass
-        print("Logger process end.")
-
-    def processstart(self, method, args, joining):
-        # args needs to be a tuple.
-        p = Process(target=method, args=args)
-        p.daemon = True
-        p.start()
-        if (joining):
-            p.join()
 
     def serialcomms(self, port):
         try:
@@ -995,6 +1004,8 @@ class TermRedirect():
         pass
 
 from pyqtgraph import PlotWidget
+
+
 
 if __name__ == "__main__":
     import sys
