@@ -888,7 +888,8 @@ class Graphics():  # can add functionality for inputting data to display
         self.backend = backend
 
     def setup3D(self, ui):
-        ui.GLWidget.setCameraPosition(distance=2, azimuth=-135)
+        ui.GLWidget.setCameraPosition(distance=2.75, azimuth=180, elevation=60)
+        ui.GLWidget.pan(-0.25,0,0)
         self.grid1 = gl.GLGridItem()
         self.ax1 = gl.GLAxisItem()
         self.ax2 = gl.GLAxisItem()
@@ -907,6 +908,8 @@ class Graphics():  # can add functionality for inputting data to display
         self.ax3.rotate(180, 0, 0, 1)
 
         self.grid1.translate(0, 0, -0.1)
+        ##------------------------------------------------------------
+        ## ARROW
         self.parseObj = OBJparser("arrow.obj")
         self.verts = np.asarray(self.parseObj.vertices)
         self.faces = []
@@ -919,6 +922,24 @@ class Graphics():  # can add functionality for inputting data to display
         self.arrow.setGLOptions('opaque')
         self.arrow.setShader('viewNormalColor')
         ui.GLWidget.addItem(self.arrow)
+        ##------------------------------------------------------------
+        ## TICKS NSEW
+        self.parseObj = OBJparser("ticks.obj")
+        self.verts = np.asarray(self.parseObj.vertices)
+        self.faces = []
+        for i in range(len(self.parseObj.faces)):
+            self.faces.append(self.parseObj.faces[i][0])
+        self.faces = np.asarray(self.faces)
+        self.verts = np.asarray(self.parseObj.vertices)
+
+        self.ticks = gl.GLMeshItem(vertexes=self.verts, faces=self.faces, smooth=False)
+        self.ticks.setGLOptions('opaque')
+        self.ticks.setShader('viewNormalColor')
+        ui.GLWidget.addItem(self.ticks)
+        self.ticks.rotate(90,1,0,0)
+
+
+
 
         self.height = 0
         self.xangle = 0
