@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui, QtCore
 from PyQt4.QtGui import *
 import multiprocessing
-#import Vector
+# import Vector
 import time
 import serial
 from multiprocessing import Queue as Q
@@ -14,6 +14,7 @@ import numpy as np
 import pyqtgraph.opengl as gl
 import math
 from PIL import Image, ImageFile
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 ALTITUDE_COLOR = "#B0171F"
@@ -58,11 +59,14 @@ except AttributeError:
 
 try:
     _encoding = QtGui.QApplication.UnicodeUTF8
+
+
     def _translate(context, text, disambig):
         return QtGui.QApplication.translate(context, text, disambig, _encoding)
 except AttributeError:
     def _translate(context, text, disambig):
         return QtGui.QApplication.translate(context, text, disambig)
+
 
 ## note any multiprocessing code needs to be top-level to work on windows. Has something to do with pickling
 ## object methods. Object methods are not pickled in windows.
@@ -94,13 +98,13 @@ def logger(filename, queue):
 
 def randomDataGen(filename="RandomData.txt", columns=14, timecol=2):
     t = 0
-    while(True):
+    while (True):
 
-        f = open(filename,"a+")
+        f = open(filename, "a+")
         for i in range(columns):
-            if i is not timecol-1:
+            if i is not timecol - 1:
                 f.write(str(random.randrange(0, 100, 1)))
-                if(i<columns-1):
+                if (i < columns - 1):
                     f.write(",")
                 else:
                     f.write("\n")
@@ -123,15 +127,15 @@ def randomDataGen(filename="RandomData.txt", columns=14, timecol=2):
 class Ui_MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(Ui_MainWindow, self).__init__(parent)
-        self.showplot = "" #front
-        self.colors = self.parsecolors() #front
-        self.actionsView = [] #front
+        self.showplot = ""  # front
+        self.colors = self.parsecolors()  # front
+        self.actionsView = []  # front
         self.data = self.fileparse(SERIAL_LOG_NAME)  # back
         self.plots = []
         self.imgPathSet = False  # back
         self.imgPath = ""  # back
-        #self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
-        #self.tabWidgetPlot.setStyleSheet('QTabWidget>QWidget>QWidget{background: '+BACKGROUND+';}')
+        # self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
+        # self.tabWidgetPlot.setStyleSheet('QTabWidget>QWidget>QWidget{background: '+BACKGROUND+';}')
 
     def begin(self):
         self.setupUi()
@@ -164,7 +168,7 @@ class Ui_MainWindow(QMainWindow):
         self.tab_2 = QtGui.QWidget()
         self.tab_2.setObjectName(_fromUtf8("tab_2"))
 
-        #self.gridwidget_pic = QtGui.QWidget(self.tab_2)
+        # self.gridwidget_pic = QtGui.QWidget(self.tab_2)
         self.gridLayout_pic = QtGui.QGridLayout(self.tab_2)
         self.gridLayout_pic.setObjectName(_fromUtf8("gridLayout_pic"))
         self.imgView = QtGui.QLabel()
@@ -175,11 +179,8 @@ class Ui_MainWindow(QMainWindow):
         self.gridLayout_pic.addWidget(self.imgScrollArea)
         # Picture
 
-        #self.gridLayout_pic.addWidget(self.imgView)
+        # self.gridLayout_pic.addWidget(self.imgView)
         self.imgScrollArea.setWidgetResizable(True)
-
-
-
 
         self.tabWidgetPlot.addTab(self.tab_2, _fromUtf8(""))
         self.gridLayout.addWidget(self.tabWidgetPlot, 3, 0, 1, 1)
@@ -237,7 +238,7 @@ class Ui_MainWindow(QMainWindow):
         self.verticalLayout_2.setObjectName(_fromUtf8("verticalLayout_2"))
         self.gridLayoutSend = QtGui.QGridLayout()
         self.gridLayoutSend.setObjectName(_fromUtf8("gridLayoutSend"))
-        #img command
+        # img command
         self.groupBoxImage = QtGui.QGroupBox(self.dockWidgetContents_4)
         self.groupBoxImage.setObjectName(_fromUtf8("groupBoxImage"))
         self.verticalLayout_3 = QtGui.QVBoxLayout(self.groupBoxImage)
@@ -304,7 +305,7 @@ class Ui_MainWindow(QMainWindow):
         self.dockWidgetOpenGL = QtGui.QDockWidget(self)
         self.dockWidgetOpenGL.setWidget(self.GLWidget)
         self.dockWidgetOpenGL.setObjectName(_fromUtf8("dockWidgetOpenGL"))
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea,self.dockWidgetOpenGL)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.dockWidgetOpenGL)
 
         # #-------------------------------------------
         # Spin box for choosing how many points to display IRT
@@ -412,7 +413,7 @@ class Ui_MainWindow(QMainWindow):
     def retranslateUi(self):
         self.setWindowTitle(_translate("MainWindow", "qtGCS 1.0 Beta", None))
         self.tabWidgetPlot.setTabText(self.tabWidgetPlot.indexOf(self.tab), _translate("MainWindow", "Plot", None))
-        #self.imgView.setText(_translate("MainWindow", "Picture Label", None))
+        # self.imgView.setText(_translate("MainWindow", "Picture Label", None))
         self.tabWidgetPlot.setTabText(self.tabWidgetPlot.indexOf(self.tab_2), _translate("MainWindow", "Image", None))
         self.menuFile.setTitle(_translate("MainWindow", "File", None))
         self.menuSerial.setTitle(_translate("MainWindow", "Serial", None))
@@ -425,12 +426,12 @@ class Ui_MainWindow(QMainWindow):
         self.pushButtonRelease.setText(_translate("MainWindow", "Release", None))
         self.pushButtonExtra_2.setText(_translate("MainWindow", "Extra 2", None))
         self.groupBoxParam.setTitle(_translate("MainWindow", "Param Send", None))
-        self.groupBoxImage.setTitle(_translate("MainWindow","Image",None))
+        self.groupBoxImage.setTitle(_translate("MainWindow", "Image", None))
         self.pushButtonParam.setText(_translate("MainWindow", "Send", None))
         self.dockWidgetTerm.setWindowTitle(_translate("MainWindow", "Terminal Out", None))
         self.toolButtonPauseTerm.setText(_translate("MainWindow", "...", None))
         self.dockWidgetPlotControl.setWindowTitle(_translate("MainWindow", "Plot Control", None))
-        self.dockWidgetOpenGL.setWindowTitle(_translate("MainWindow","OpenGL",None))
+        self.dockWidgetOpenGL.setWindowTitle(_translate("MainWindow", "OpenGL", None))
         self.groupBoxPlotControl.setTitle(_translate("MainWindow", "Plot Controls", None))
         self.pushButtonSetPoints.setText(_translate("MainWindow", "Set", None))
         self.pushButtonSetRange.setText(_translate("MainWindow", "Set", None))
@@ -444,7 +445,7 @@ class Ui_MainWindow(QMainWindow):
         self.actionPause_Comms.setText(_translate("MainWindow", "Pause Comms", None))
         self.actionEnd_Comms.setText(_translate("MainWindow", "End Comms", None))
         self.pushButtonImg.setText(_translate("MainWindow", "Load Image", None))
- 
+
     def iniview(self):
         for i, list in enumerate(self.data):
             if list[0] == "Time" or list[0] == "time":  # get xaxis values column
@@ -456,9 +457,9 @@ class Ui_MainWindow(QMainWindow):
             self.plots.append(plotObjs(list[0], self.colors[random.randrange(0, len(self.colors), 1)]))
             self.actionsView[i].triggered.connect(partial(self.changedisplay, self.plots[i].name))
         self.actionViewAll = QtGui.QAction(self)
-        self.actionViewAll.setText(_translate("MainWindow","All", None))
+        self.actionViewAll.setText(_translate("MainWindow", "All", None))
         self.menuView.addAction(self.actionViewAll)
-        self.actionViewAll.triggered.connect(partial(self.changedisplay,"All"))
+        self.actionViewAll.triggered.connect(partial(self.changedisplay, "All"))
 
     def iniserial(self):
         self.actionPort.triggered.connect(partial(self.serialmenuconnect, 1))
@@ -473,7 +474,7 @@ class Ui_MainWindow(QMainWindow):
         self.pushButtonSetRange.clicked.connect(self.setaxisbool)
         self.pushButtonSetPoints.clicked.connect(self.setaxisbool)
         self.pushButtonImg.clicked.connect(self.loadimage)
-        self.pushButtonParam.clicked.connect(partial(self.paramsend,"p"))
+        self.pushButtonParam.clicked.connect(partial(self.paramsend, "p"))
 
     def serialmenuconnect(self, case):
         print(case)
@@ -559,7 +560,7 @@ class Ui_MainWindow(QMainWindow):
                         print(repr(serialData))
                         # serialObj.flushInput()
                         if (
-                                    serialData == "sending picture\n" or serialData == "sending picture" or serialData == "sending picture\r\n"):
+                                            serialData == "sending picture\n" or serialData == "sending picture" or serialData == "sending picture\r\n"):
                             run += 1
                             print(run)
                             serialData = ""
@@ -634,9 +635,9 @@ class Ui_MainWindow(QMainWindow):
         print("You inputted: " + text)
         return text, choice
 
-    def paramsend(self,cmd):
-        if(serialSendQ.empty()):
-            if(cmd == "p"):
+    def paramsend(self, cmd):
+        if (serialSendQ.empty()):
+            if (cmd == "p"):
                 cmd = str(self.lineEditParam.text()) + '\n'
             print("Sending: " + cmd)
             serialSendQ.put(cmd)
@@ -644,43 +645,42 @@ class Ui_MainWindow(QMainWindow):
             self.warningdialog("Still sending previous packet!")
 
     def parsecolors(self):
-        default = ["#B0171F","#9400D3","#473C8B","#4169E1","#00688B","#008080"]
+        default = ["#B0171F", "#9400D3", "#473C8B", "#4169E1", "#00688B", "#008080"]
         try:
-            f = open("colors.cfg","r")
+            f = open("colors.cfg", "r")
             data = f.read()
             list = data.split("\n")
             counter = 0
-            while(True):
+            while (True):
                 counterprev = counter
-                for i , val in enumerate(list):
+                for i, val in enumerate(list):
                     if val == "":
-                        counter+=1
+                        counter += 1
                         list.remove(val)
-                if(counterprev == counter):
+                if (counterprev == counter):
                     break
-
 
             f.close()
             return list
         except:
             return default
 
-    def choosecolorsrand(self,list):
+    def choosecolorsrand(self, list):
         randlist = []
         index = []
         for i in range(len(list)):
             index.append(i)
-        if(len(list)>=len(self.data)):
+        if (len(list) >= len(self.data)):
             for i, col in enumerate(self.data):
                 randidx = random.choice(index)
                 randlist.append(list[randidx])
                 index.remove(randidx)
 
     def scrollterm(self):
-        if(not scroll):
+        if (not scroll):
             self.plainTextEditTerm.moveCursor(QtGui.QTextCursor.End)
             self.plainTextEditTerm.setEnabled(False)
-            #self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
+            # self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
         else:
             self.plainTextEditTerm.setEnabled(True)
         global scroll
@@ -691,14 +691,14 @@ class Ui_MainWindow(QMainWindow):
         SetAxis = True
 
     def loadimage(self):
-        if(self.imgPathSet == False):
+        if (self.imgPathSet == False):
             self.imgPath = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '/home')
         else:
             pass
         f = Image.open(str(self.imgPath))
         f.save("tempimg.png")
         pixmap = QtGui.QPixmap("tempimg.png")
-        #arr = np.array(f.getdata())
+        # arr = np.array(f.getdata())
         self.imgView.setPixmap(pixmap)
 
     def fileparse(self, log):
@@ -710,18 +710,18 @@ class Ui_MainWindow(QMainWindow):
         getData = fo2.read()
         fo2.close()
         lines = getData.split('\n')
-        #print(lines)
+        # print(lines)
         # Headers = parse_serial(lines[0])
         Headers = lines[0].split(",")
-        #print(Headers)
+        # print(Headers)
         data = []
         for i, header in enumerate(Headers):
             # poplates data list with lists
             data.append([])
-        #print(repr(data))
+        # print(repr(data))
         for i, line in enumerate(lines):
             if (len(Headers) == len(line.split(","))):
-                #print(repr(line))
+                # print(repr(line))
                 # dataPoints = parse_serial(line)
                 dataPoints = line.split(",")
                 # print(dataPoints)
@@ -736,7 +736,7 @@ class Ui_MainWindow(QMainWindow):
 
 class Backend():
     def __init__(self, ui):
-        #super(Backend, self).__init__()
+        # super(Backend, self).__init__()
         ui.iniserial()
         ui.inicommand()
         global GraphParam
@@ -766,7 +766,7 @@ class Backend():
 
     def plotloop(self, ui):
         self.data = self.fileparse(SERIAL_LOG_NAME)
-        #print(self.data)
+        # print(self.data)
         if GraphParam is not "All":
             if not self.ran2:
                 self.ran2 = True
@@ -790,7 +790,7 @@ class Backend():
                                       symbolBrush=self.plots[i].color)
                     self.plotobj.setTitle(self.plots[i].name, color=self.plots[i].color)
                     # Set axis limits
-                    self.setxaxis(self.plotobj,ui=ui)
+                    self.setxaxis(self.plotobj, ui=ui)
             self.ran = False
         elif GraphParam == "All":
             if not self.ran:
@@ -846,13 +846,13 @@ class Backend():
                         # print("exception")
                 self.displaypoints = ui.spinBoxPoints.value()
                 if (self.minrange == 0 and self.maxrange == 0 and self.displaypoints == 0) or (
-                        ui.lineEditMin.text() == "" or ui.lineEditMax.text() == ""):
+                                ui.lineEditMin.text() == "" or ui.lineEditMax.text() == ""):
                     ui.spinBoxPoints.setEnabled(True)
                     widget.enableAutoRange(enable=True)
                     # print(1)
 
                 elif (self.minrange != 0 and self.maxrange != 0 and self.displaypoints != 0) or (
-                    self.maxrange < self.minrange):
+                            self.maxrange < self.minrange):
                     ui.warningdialog("This makes no sense! Use your brain.")
                     ui.spinBoxPoints.setValue(0)
                     ui.lineEditMax.clear()
@@ -879,7 +879,7 @@ class Backend():
                 SetAxis = False
 
 
-class Graphics(): # can add functionality for inputting data to display
+class Graphics():  # can add functionality for inputting data to display
     def __init__(self, ui, backend):
         self.setup3D(ui)
         self.timer2 = pg.QtCore.QTimer()
@@ -956,7 +956,7 @@ class Graphics(): # can add functionality for inputting data to display
         if self.yangleprev != self.yangle:
             self.yangleprev = self.yangle
         if self.zangleprev != self.zangle:
-            self.zangleprev = self.zangle # can add functionality fo
+            self.zangleprev = self.zangle  # can add functionality fo
 
 
 class OBJparser:
@@ -1010,22 +1010,24 @@ class TermRedirect():
         self.oldobj = oldobj
         self.index = 1
         pass
+
     def write(self, Str):
         self.widget.setReadOnly(False)
-        #self.widget.setEnabled(False)
-        #self.widget.moveCursor(QtGui.QTextCursor.End)
+        # self.widget.setEnabled(False)
+        # self.widget.moveCursor(QtGui.QTextCursor.End)
         global scroll
         if scroll:
             self.widget.moveCursor(QtGui.QTextCursor.End)
         if Str != '\n':
             self.widget.insertPlainText(str(self.index) + ": ")
             self.index += 1
-        #self.oldobj.write(repr(Str))
+        # self.oldobj.write(repr(Str))
         self.widget.insertPlainText(Str)
         self.widget.setReadOnly(True)
         self.oldobj.write(Str)
 
         pass
+
     def flush(self):
         pass
 
@@ -1035,10 +1037,13 @@ class plotObjs:
         self.name = name
         self.color = color
         self.unit = ""
+
+
 from pyqtgraph import PlotWidget
 
 if __name__ == "__main__":
     import sys
+
     app = QtGui.QApplication(sys.argv)
     ui = Ui_MainWindow()
     ui.begin()
@@ -1047,6 +1052,3 @@ if __name__ == "__main__":
     oldstdout = sys.stdout
     sys.stdout = TermRedirect(ui.plainTextEditTerm, oldstdout)
     sys.exit(app.exec_())
-
-
-
