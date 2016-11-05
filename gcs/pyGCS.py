@@ -69,7 +69,7 @@ except AttributeError:
 
 
 ## note any multiprocessing code needs to be top-level to work on windows. Has something to do with pickling
-## object methods. Object methods are not pickled in windows.
+## object methods. Object methods are not pickled in windows.df
 
 
 def processstart(method, args, joining):
@@ -109,7 +109,7 @@ def randomDataGen(filename="RandomData.txt", columns=14, timecol=2):
                 else:
                     f.write("\n")
             else:
-                f.write(str(t))
+                f.write(str(t*1000))
                 if (i < columns - 1):
                     f.write(",")
                 else:
@@ -132,8 +132,7 @@ class Ui_MainWindow(QMainWindow):
         self.actionsView = []  # front
         self.data = self.fileparse(SERIAL_LOG_NAME)  # back
         self.plots = []
-        self.imgPathSet = False  # back
-        self.imgPath = ""  # back
+
         # self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
         # self.tabWidgetPlot.setStyleSheet('QTabWidget>QWidget>QWidget{background: '+BACKGROUND+';}')
 
@@ -461,55 +460,271 @@ class Ui_MainWindow(QMainWindow):
         self.menuView.addAction(self.actionViewAll)
         self.actionViewAll.triggered.connect(partial(self.changedisplay, "All"))
 
-    def iniserial(self):
-        self.actionPort.triggered.connect(partial(self.serialmenuconnect, 1))
-        self.actionStart_Comms.triggered.connect(partial(self.serialmenuconnect, 2))
-        self.actionPause_Comms.triggered.connect(partial(self.serialmenuconnect, 3))
-        self.actionEnd_Comms.triggered.connect(partial(self.serialmenuconnect, 4))
-
-    def inicommand(self):
-        self.pushButtonCam.clicked.connect(partial(self.paramsend, CAM_CMD))
-        self.pushButtonRelease.clicked.connect(partial(self.paramsend, RELEASE_CMD))
-        self.toolButtonPauseTerm.clicked.connect(self.scrollterm)
-        self.pushButtonSetRange.clicked.connect(self.setaxisbool)
-        self.pushButtonSetPoints.clicked.connect(self.setaxisbool)
-        self.pushButtonImg.clicked.connect(self.loadimage)
-        self.pushButtonParam.clicked.connect(partial(self.paramsend, "p"))
-
-    def serialmenuconnect(self, case):
-        print(case)
-        if case == 1:
-            while (True):
-                self.port, choice = self.inputdialog("Port", "Input Port (/dev/tty or COM)")
-                try:
-                    test = serial.Serial(port=self.port)
-                    test.close()
-                    global PortSet
-                    PortSet = True
-                    print(PortSet)
-                    break
-                except:
-                    if (not choice):
-                        global PortSet
-                        PortSet = False
-                        return
-                    else:
-                        self.warningdialog("Not a valid port, try again.")
-                        global PortSet
-                        PortSet = False
-        elif case == 2 and PortSet:
-            serialStateQ.put("Start Serial")
-            self.processstart(self.serialcomms, (self.port,), False)
-            print("starting serial...")
-        elif case == 3 and PortSet:
-            serialStateQ.put("Stop Serial")
-        elif case == 4 and PortSet:
-            serialStateQ.put("End Serial")
-        else:
-            self.warningdialog("Need to enter valid port!")
-
     def inibuttons(self):
         pass
+
+    def saveFigure(self):
+        pass
+
+    def changedisplay(self, WhatDisp):
+        # method that changes the displayed plot on the graph frame
+        global GraphParam
+        GraphParam = WhatDisp
+        print("changing to: " + str(GraphParam))
+        B.plotloop()
+
+    def serialcontrol(self):
+        global PortSet
+        global SerialCommsStatus
+
+        if PortSet == False:
+            pass
+
+    def SendPacket(self, packet):
+        if (serialSendQ.empty() == True):
+            serialSendQ.put(packet, 0)
+        else:
+            self.warningdialog("Still sending previous packet!")
+
+    def warningdialog(self, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setWindowTitle("WARNING!")
+        ret = msg.exec_()
+
+    def inputdialog(self, title, message):
+        text, choice = QInputDialog.getText(self, title, message)
+        print("You inputted: " + text)
+        return text, choice
+
+    def parsecolors(self):
+        default = ["#B0171F", "#9400D3", "#473C8B", "#4169E1", "#00688B", "#008080"]
+        try:
+            f = open("colors.cfg", "r")
+            data = f.read()
+            list = data.split("\n")
+            counter = 0
+            while (True):
+                counterprev = counter
+                for i, val in enumerate(list):
+                    if val == "":
+                        counter += 1
+                        list.remove(val)
+                if (counterprev == counter):
+                    break
+
+            f.close()
+            return list
+        except:
+            return default
+
+    def choosecolorsrand(self, list):
+        randlist = []
+        index = []
+        for i in range(len(list)):
+            index.append(i)
+        if (len(list) >= len(self.data)):
+            for i, col in enumerate(self.data):
+                randidx = random.choice(index)
+                randlist.append(list[randidx])
+                index.remove(randidx)
+
+    def fileparse(self, log):
+        try:
+            fo2 = open(log, "r")
+        except:
+            fo2 = open(log, "a+")
+            fo2.write(DEFAULT_HEADER)
+        getData = fo2.read()
+        fo2.close()
+        lines = getData.split('\n')
+        # print(lines)
+        # Headers = parse_serial(lines[0])
+        Headers = lines[0].split(",")
+        # print(Headers)
+        data = []
+        for i, header in enumerate(Headers):
+            # poplates data list with lists
+            data.append([])
+        # print(repr(data))
+        for i, line in enumerate(lines):
+            if (len(Headers) == len(line.split(","))):
+                # print(repr(line))
+                # dataPoints = parse_serial(line)
+                dataPoints = line.split(",")
+                # print(dataPoints)
+                # populates dataPoints with values in each line
+                for j, list in enumerate(data):
+                    # populates sublists of each header with corresponding points of data.(2D array kinda)
+                    data[j - 1].append(dataPoints[j - 1])
+                    # print(data)
+                    # #######-------------------########## working here.q
+        return data
+
+
+class Backend():
+    def __init__(self, ui):
+        # super(Backend, self).__init__()
+        self.ui = ui
+        self.iniserial()
+        self.inicommand()
+        global GraphParam
+        GraphParam = ui.plots[0].name
+        processstart(logger, (SERIAL_LOG_NAME, serialDataQ,), False)  # back
+        #processstart(randomDataGen, (SERIAL_LOG_NAME, 16), False)
+        self.timer = pg.QtCore.QTimer()
+        self.timer.timeout.connect(partial(self.plotloop))
+        self.timer.start(500)
+        self.logName = "Data.txt"  # back
+        self.timeCol = ui.timeCol  # back
+        self.data = ui.fileparse(SERIAL_LOG_NAME)  # back
+        self.plotLoad = False  # back
+        self.serialCommsIndicator = "End Serial"  # back
+        self.threadStart = False  # back # back
+        self.multiplot = []  # back
+        self.port = ""  # back
+        self.ran = False  # back
+        self.ran2 = False  # back
+        self.runIterator = 0  # back
+        self.plots = ui.plots
+        self.symbol = 'o'
+        self.minrange = 0  # back
+        self.maxrange = 0  # back
+        self.displaypoints = 0  # back
+        self.fileparse = ui.fileparse
+        self.imgPathSet = False  # back
+        self.imgPath = ""  # back
+
+    def plotloop(self):
+        self.data = self.fileparse(SERIAL_LOG_NAME)
+        # print(self.data)
+        if GraphParam is not "All":
+            if not self.ran2:
+                self.ran2 = True
+                ui.graphicsView.clear()
+                self.plotobj = self.ui.graphicsView.addPlot()
+                self.ran2 = True
+                self.plotobj.showGrid(True, True, alpha=1)
+                ax = self.plotobj.getAxis("bottom")
+                ax.setPen(AXIS_PEN)
+                ax = self.plotobj.getAxis("left")
+                ax.setPen(AXIS_PEN)
+            for i, list in enumerate(self.data):
+                if GraphParam == list[0]:
+                    self.plotobj.plot(np.array(self.data[self.timeCol][1:]).astype(np.float),
+                                      np.array(list[1:]).astype(np.float),
+                                      clear=True,
+                                      title=self.plots[i].name,
+                                      pen=self.plots[i].color,
+                                      symbol=self.symbol,
+                                      symbolPen=SYMBOL_PEN,
+                                      symbolBrush=self.plots[i].color)
+                    self.plotobj.setTitle(self.plots[i].name, color=self.plots[i].color)
+                    # Set axis limits
+                    self.setxaxis(self.plotobj)
+            self.ran = False
+        elif GraphParam == "All":
+            if not self.ran:
+                self.ran = True
+                self.ui.graphicsView.clear()
+                self.multiplot = []
+                y = 0
+                numlist = len(self.plots)
+                for i, list in enumerate(self.data):
+                    y = int(math.ceil(math.sqrt(numlist)))
+                    x = int(math.ceil(float(numlist - y) / float(y))) + 1
+                j = 0
+                for i in range(numlist):
+                    k = i % y
+                    temp = self.ui.graphicsView.addPlot(row=j, col=k, rowspan=1, colspan=1)
+                    self.multiplot.append(temp)
+                    if (k == (y - 1)):
+                        j += 1
+                    self.multiplot[i].showGrid(True, True, alpha=1)
+                    ax1 = self.multiplot[i].getAxis("left")
+                    ax1.setPen(AXIS_PEN)
+                    ax = self.multiplot[i].getAxis("bottom")
+                    ax.setPen(AXIS_PEN)
+            for k, col in enumerate(self.data):
+                self.multiplot[k].plot(np.array(self.data[self.timeCol][1:]).astype(np.float),
+                                       np.array(col[1:]).astype(np.float),
+                                       clear=True,
+                                       title=self.plots[k].name,
+                                       pen=self.plots[k].color,
+                                       symbol=self.symbol,
+                                       symbolPen=SYMBOL_PEN,
+                                       symbolBrush=self.plots[k].color)
+                self.multiplot[k].setTitle(self.plots[k].name, color=self.plots[k].color)
+                self.setxaxis(self.multiplot[k], len(self.data))
+
+            self.ran2 = False
+
+    def setxaxis(self, widget, iterate=1):
+        global SetAxis
+        if SetAxis:
+            widget.enableAutoRange(True, y=1)
+            if self.runIterator != iterate:
+                try:
+                    self.minrange = int(ui.lineEditMin.text())
+                    self.maxrange = int(ui.lineEditMax.text())
+                except:
+                    if (ui.lineEditMin.text() == ""):
+                        self.minrange = 0
+                        ui.lineEditMin.setText("0")
+                    if (ui.lineEditMax.text() == ""):
+                        self.maxrange = 0
+                        ui.lineEditMax.setText("0")
+                        # print("exception")
+                self.displaypoints = ui.spinBoxPoints.value()
+                if (self.minrange == 0 and self.maxrange == 0 and self.displaypoints == 0) or (
+                                ui.lineEditMin.text() == "" or ui.lineEditMax.text() == ""):
+                    ui.spinBoxPoints.setEnabled(True)
+                    widget.enableAutoRange(enable=True)
+                    # print(1)
+
+                elif (self.minrange != 0 and self.maxrange != 0 and self.displaypoints != 0) or (
+                            self.maxrange < self.minrange):
+                    ui.warningdialog("This makes no sense! Use your brain.")
+                    ui.spinBoxPoints.setValue(0)
+                    ui.lineEditMax.clear()
+                    ui.lineEditMin.clear()
+                    ui.minrange = 0
+                    ui.maxrange = 0
+                    widget.enableAutoRange(enable=True)
+                    # print(2)
+                elif (self.minrange or self.maxrange):
+                    ui.spinBoxPoints.setEnabled(False)
+                    if ui.lineEditMin.text() == "" and ui.lineEditMax.text() == "":
+                        ui.spinBoxPoints.setEnabled(True)
+                    widget.setXRange(self.minrange, self.maxrange, padding=0)
+                    # print(3)
+
+                elif self.displaypoints:
+                    widget.setXRange(int(self.data[self.timeCol][-self.displaypoints]),
+                                     int(self.data[self.timeCol][-1]), padding=.001)
+                    widget.enableAutoRange(True, y=1)
+                    # print(4)
+                self.runIterator += 1
+            else:
+                self.runIterator = 0
+                SetAxis = False
+
+    def iniserial(self):
+        self.ui.actionPort.triggered.connect(partial(self.serialmenuconnect, 1))
+        self.ui.actionStart_Comms.triggered.connect(partial(self.serialmenuconnect, 2))
+        self.ui.actionPause_Comms.triggered.connect(partial(self.serialmenuconnect, 3))
+        self.ui.actionEnd_Comms.triggered.connect(partial(self.serialmenuconnect, 4))
+
+    def inicommand(self):
+        self.ui.pushButtonCam.clicked.connect(partial(self.paramsend, CAM_CMD))
+        self.ui.pushButtonRelease.clicked.connect(partial(self.paramsend, RELEASE_CMD))
+        self.ui.toolButtonPauseTerm.clicked.connect(self.scrollterm)
+        self.ui.pushButtonSetRange.clicked.connect(self.setaxisbool)
+        self.ui.pushButtonSetPoints.clicked.connect(self.setaxisbool)
+        self.ui.pushButtonImg.clicked.connect(self.loadimage)
+        self.ui.pushButtonParam.clicked.connect(partial(self.paramsend, "p"))
 
     def serialcomms(self, port):
         try:
@@ -599,90 +814,54 @@ class Ui_MainWindow(QMainWindow):
             SerialThreadStart = False
             return
 
-    def saveFigure(self):
-        pass
-
-    def changedisplay(self, WhatDisp):
-        # method that changes the displayed plot on the graph frame
-        global GraphParam
-        GraphParam = WhatDisp
-        print("changing to: " + str(GraphParam))
-        B.plotloop(self)
-
-    def serialcontrol(self):
-        global PortSet
-        global SerialCommsStatus
-
-        if PortSet == False:
-            pass
-
-    def SendPacket(self, packet):
-        if (serialSendQ.empty() == True):
-            serialSendQ.put(packet, 0)
+    def serialmenuconnect(self, case):
+        print(case)
+        if case == 1:
+            while (True):
+                self.port, choice = self.ui.inputdialog("Port", "Input Port (/dev/tty or COM)")
+                try:
+                    test = serial.Serial(port=self.port)
+                    test.close()
+                    global PortSet
+                    PortSet = True
+                    print(PortSet)
+                    break
+                except:
+                    if (not choice):
+                        global PortSet
+                        PortSet = False
+                        return
+                    else:
+                        self.ui.warningdialog("Not a valid port, try again.")
+                        global PortSet
+                        PortSet = False
+        elif case == 2 and PortSet:
+            serialStateQ.put("Start Serial")
+            processstart(self.serialcomms, (self.port,), False)
+            print("starting serial...")
+        elif case == 3 and PortSet:
+            serialStateQ.put("Stop Serial")
+        elif case == 4 and PortSet:
+            serialStateQ.put("End Serial")
         else:
-            self.warningdialog("Still sending previous packet!")
-
-    def warningdialog(self, message):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setText(message)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.setWindowTitle("WARNING!")
-        ret = msg.exec_()
-
-    def inputdialog(self, title, message):
-        text, choice = QInputDialog.getText(self, title, message)
-        print("You inputted: " + text)
-        return text, choice
+            self.ui.warningdialog("Need to enter valid port!")
 
     def paramsend(self, cmd):
         if (serialSendQ.empty()):
             if (cmd == "p"):
-                cmd = str(self.lineEditParam.text()) + '\n'
+                cmd = str(ui.lineEditParam.text()) + '\n'
             print("Sending: " + cmd)
             serialSendQ.put(cmd)
         else:
-            self.warningdialog("Still sending previous packet!")
-
-    def parsecolors(self):
-        default = ["#B0171F", "#9400D3", "#473C8B", "#4169E1", "#00688B", "#008080"]
-        try:
-            f = open("colors.cfg", "r")
-            data = f.read()
-            list = data.split("\n")
-            counter = 0
-            while (True):
-                counterprev = counter
-                for i, val in enumerate(list):
-                    if val == "":
-                        counter += 1
-                        list.remove(val)
-                if (counterprev == counter):
-                    break
-
-            f.close()
-            return list
-        except:
-            return default
-
-    def choosecolorsrand(self, list):
-        randlist = []
-        index = []
-        for i in range(len(list)):
-            index.append(i)
-        if (len(list) >= len(self.data)):
-            for i, col in enumerate(self.data):
-                randidx = random.choice(index)
-                randlist.append(list[randidx])
-                index.remove(randidx)
+            ui.warningdialog("Still sending previous packet!")
 
     def scrollterm(self):
         if (not scroll):
-            self.plainTextEditTerm.moveCursor(QtGui.QTextCursor.End)
-            self.plainTextEditTerm.setEnabled(False)
+            self.ui.plainTextEditTerm.moveCursor(QtGui.QTextCursor.End)
+            self.ui.plainTextEditTerm.setEnabled(False)
             # self.plainTextEditTerm.setStyleSheet("color:black; background-color:white")
         else:
-            self.plainTextEditTerm.setEnabled(True)
+            self.ui.plainTextEditTerm.setEnabled(True)
         global scroll
         scroll = not scroll
 
@@ -692,191 +871,14 @@ class Ui_MainWindow(QMainWindow):
 
     def loadimage(self):
         if (self.imgPathSet == False):
-            self.imgPath = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '/home')
+            self.imgPath = QtGui.QFileDialog.getOpenFileName(self.ui, 'Open file', '/home')
         else:
             pass
         f = Image.open(str(self.imgPath))
         f.save("tempimg.png")
         pixmap = QtGui.QPixmap("tempimg.png")
         # arr = np.array(f.getdata())
-        self.imgView.setPixmap(pixmap)
-
-    def fileparse(self, log):
-        try:
-            fo2 = open(log, "r")
-        except:
-            fo2 = open(log, "a+")
-            fo2.write(DEFAULT_HEADER)
-        getData = fo2.read()
-        fo2.close()
-        lines = getData.split('\n')
-        # print(lines)
-        # Headers = parse_serial(lines[0])
-        Headers = lines[0].split(",")
-        # print(Headers)
-        data = []
-        for i, header in enumerate(Headers):
-            # poplates data list with lists
-            data.append([])
-        # print(repr(data))
-        for i, line in enumerate(lines):
-            if (len(Headers) == len(line.split(","))):
-                # print(repr(line))
-                # dataPoints = parse_serial(line)
-                dataPoints = line.split(",")
-                # print(dataPoints)
-                # populates dataPoints with values in each line
-                for j, list in enumerate(data):
-                    # populates sublists of each header with corresponding points of data.(2D array kinda)
-                    data[j - 1].append(dataPoints[j - 1])
-                    # print(data)
-                    # #######-------------------########## working here.
-        return data
-
-
-class Backend():
-    def __init__(self, ui):
-        # super(Backend, self).__init__()
-        ui.iniserial()
-        ui.inicommand()
-        global GraphParam
-        GraphParam = ui.plots[0].name
-        processstart(logger, (SERIAL_LOG_NAME, serialDataQ,), False)  # back
-        processstart(randomDataGen, (SERIAL_LOG_NAME, 16), False)
-        self.timer = pg.QtCore.QTimer()
-        self.timer.timeout.connect(partial(self.plotloop, ui))
-        self.timer.start(500)
-        self.logName = "Data.txt"  # back
-        self.timeCol = ui.timeCol  # back
-        self.data = ui.fileparse(SERIAL_LOG_NAME)  # back
-        self.plotLoad = False  # back
-        self.serialCommsIndicator = "End Serial"  # back
-        self.threadStart = False  # back # back
-        self.multiplot = []  # back
-        self.port = ""  # back
-        self.ran = False  # back
-        self.ran2 = False  # back
-        self.runIterator = 0  # back
-        self.plots = ui.plots
-        self.symbol = 'o'
-        self.minrange = 0  # back
-        self.maxrange = 0  # back
-        self.displaypoints = 0  # back
-        self.fileparse = ui.fileparse
-
-    def plotloop(self, ui):
-        self.data = self.fileparse(SERIAL_LOG_NAME)
-        # print(self.data)
-        if GraphParam is not "All":
-            if not self.ran2:
-                self.ran2 = True
-                ui.graphicsView.clear()
-                self.plotobj = ui.graphicsView.addPlot()
-                self.ran2 = True
-                self.plotobj.showGrid(True, True, alpha=1)
-                ax = self.plotobj.getAxis("bottom")
-                ax.setPen(AXIS_PEN)
-                ax = self.plotobj.getAxis("left")
-                ax.setPen(AXIS_PEN)
-            for i, list in enumerate(self.data):
-                if GraphParam == list[0]:
-                    self.plotobj.plot(np.array(self.data[self.timeCol][1:]).astype(np.float),
-                                      np.array(list[1:]).astype(np.float),
-                                      clear=True,
-                                      title=self.plots[i].name,
-                                      pen=self.plots[i].color,
-                                      symbol=self.symbol,
-                                      symbolPen=SYMBOL_PEN,
-                                      symbolBrush=self.plots[i].color)
-                    self.plotobj.setTitle(self.plots[i].name, color=self.plots[i].color)
-                    # Set axis limits
-                    self.setxaxis(self.plotobj, ui=ui)
-            self.ran = False
-        elif GraphParam == "All":
-            if not self.ran:
-                self.ran = True
-                ui.graphicsView.clear()
-                self.multiplot = []
-                y = 0
-                numlist = len(self.plots)
-                for i, list in enumerate(self.data):
-                    y = int(math.ceil(math.sqrt(numlist)))
-                    x = int(math.ceil(float(numlist - y) / float(y))) + 1
-                j = 0
-                for i in range(numlist):
-                    k = i % y
-                    temp = ui.graphicsView.addPlot(row=j, col=k, rowspan=1, colspan=1)
-                    self.multiplot.append(temp)
-                    if (k == (y - 1)):
-                        j += 1
-                    self.multiplot[i].showGrid(True, True, alpha=1)
-                    ax1 = self.multiplot[i].getAxis("left")
-                    ax1.setPen(AXIS_PEN)
-                    ax = self.multiplot[i].getAxis("bottom")
-                    ax.setPen(AXIS_PEN)
-            for k, col in enumerate(self.data):
-                self.multiplot[k].plot(np.array(self.data[self.timeCol][1:]).astype(np.float),
-                                       np.array(col[1:]).astype(np.float),
-                                       clear=True,
-                                       title=self.plots[k].name,
-                                       pen=self.plots[k].color,
-                                       symbol=self.symbol,
-                                       symbolPen=SYMBOL_PEN,
-                                       symbolBrush=self.plots[k].color)
-                self.multiplot[k].setTitle(self.plots[k].name, color=self.plots[k].color)
-                self.setxaxis(self.multiplot[k], len(self.data))
-
-            self.ran2 = False
-
-    def setxaxis(self, widget, ui, iterate=1):
-        global SetAxis
-        if SetAxis:
-            widget.enableAutoRange(True, y=1)
-            if self.runIterator != iterate:
-                try:
-                    self.minrange = int(ui.lineEditMin.text())
-                    self.maxrange = int(ui.lineEditMax.text())
-                except:
-                    if (ui.lineEditMin.text() == ""):
-                        self.minrange = 0
-                        ui.lineEditMin.setText("0")
-                    if (ui.lineEditMax.text() == ""):
-                        self.maxrange = 0
-                        ui.lineEditMax.setText("0")
-                        # print("exception")
-                self.displaypoints = ui.spinBoxPoints.value()
-                if (self.minrange == 0 and self.maxrange == 0 and self.displaypoints == 0) or (
-                                ui.lineEditMin.text() == "" or ui.lineEditMax.text() == ""):
-                    ui.spinBoxPoints.setEnabled(True)
-                    widget.enableAutoRange(enable=True)
-                    # print(1)
-
-                elif (self.minrange != 0 and self.maxrange != 0 and self.displaypoints != 0) or (
-                            self.maxrange < self.minrange):
-                    ui.warningdialog("This makes no sense! Use your brain.")
-                    ui.spinBoxPoints.setValue(0)
-                    ui.lineEditMax.clear()
-                    ui.lineEditMin.clear()
-                    ui.minrange = 0
-                    ui.maxrange = 0
-                    widget.enableAutoRange(enable=True)
-                    # print(2)
-                elif (self.minrange or self.maxrange):
-                    ui.spinBoxPoints.setEnabled(False)
-                    if ui.lineEditMin.text() == "" and ui.lineEditMax.text() == "":
-                        ui.spinBoxPoints.setEnabled(True)
-                    widget.setXRange(self.minrange, self.maxrange, padding=0)
-                    # print(3)
-
-                elif self.displaypoints:
-                    widget.setXRange(int(self.data[self.timeCol][-self.displaypoints]),
-                                     int(self.data[self.timeCol][-1]), padding=.001)
-                    widget.enableAutoRange(True, y=1)
-                    # print(4)
-                self.runIterator += 1
-            else:
-                self.runIterator = 0
-                SetAxis = False
+        self.ui.imgView.setPixmap(pixmap)
 
 
 class Graphics():  # can add functionality for inputting data to display
@@ -1058,6 +1060,13 @@ class plotObjs:
         self.name = name
         self.color = color
         self.unit = ""
+
+class TimeAxisItem(pg.AxisItem):
+    def __init__(self, *args, **kwargs):
+        super(TimeAxisItem).__init__(*args, **kwargs)
+
+    def tickStrings(self, values, scale, spacing):
+        return []
 
 
 from pyqtgraph import PlotWidget
