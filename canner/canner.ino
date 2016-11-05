@@ -3,6 +3,7 @@
 #include <LSM6.h>
 #include <LIS3MDL.h>
 #include "cannerdata.h"
+#include <SD.h>
 
 LPS PTS; 
 LIS3MDL MAG;
@@ -10,7 +11,7 @@ data_s candata;
 HardwareSerial gpsSerial = Serial1; //read and print from serial port 1 on the GPS
 Adafruit_GPS GPS(&gpsSerial); //need to use the address for the GPS serial
 HardwareSerial Xbee = Serial2; //calls class to send data to serial 2 for the xbee
-
+const int chipSelect = 4;
 
 
 boolean usingInterrupt = true;
@@ -29,6 +30,18 @@ if(! PTS.init()){
 if(! MAG.init()){
   Serial.println("Magnetometer sensor failed to initialize");
 }
+  Serial.print("Initializing SD card...");
+  // make sure that the default chip select pin is set to
+  // output, even if you don't use it:
+  pinMode(10, OUTPUT);
+  
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Card failed, or not present");
+    // don't do anything more:
+    return;
+  }
+  Serial.println("card initialized.");
 PTS.enableDefault();
 MAG.enableDefault();
 GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
@@ -93,5 +106,31 @@ void sendData(){
   Xbee.print(candata.piccount);
   Xbee.println();
 }
+}
+
+//create a function that logs the data (the struct)
+void logdata(){
+  File dataFile = SD.open("canlog.txt", FILE_WRITE);
+
+  // if the file is available, write to it:
+  if (dataFile) {
+    dataFile.print(candata.alt); dataFile.print(",");
+    dataFile.print(candata.temp); dataFile.print(",");
+    dataFile.print(candata.state);dataFile.print(",");
+    dataFile.print(candata.pres); dataFile.print(",");
+    dataFile.print(candata.airspeed); dataFile.print(",");
+    dataFile.print(candata.magx); dataFile.print(",");
+    dataFile.print(candata.magy); dataFile.print(",");
+    dataFile.print(candata.magz); dataFile.print(",");
+    dataFile.print(candata.lat); dataFile.print(",");
+    dataFile.print(candata.lon); dataFile.print(",");
+    dataFile.print(candata.gpsalt); dataFile.print(",");
+    dataFile.print(candata.piccount); dataFile.println();
+    dataFile.close();
+  }  
+  // if the file isn't open, pop up an error:
+  else {
+    Serial.println("error opening datalog.txt");
+  } 
 }
 
