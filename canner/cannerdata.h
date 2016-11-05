@@ -1,16 +1,16 @@
 typedef struct packet{
-  int state;
-  float pres; 
-  float temp; 
-  float alt;
-  float airspeed; 
-  float magx;
-  float magy;
-  float magz;
-  float lat;
-  float lon;
-  float gpsalt;
-  int piccount;
+  int state = 0;
+  float pres = 0; 
+  float temp = 0; 
+  float alt = 0;
+  float airspeed = 0; 
+  float magx = 0;
+  float magy = 0;
+  float magz = 0;
+  float lat = 0;
+  float lon = 0;
+  float gpsalt = 0;
+  int piccount = 0;
   
   
 } data_s;
