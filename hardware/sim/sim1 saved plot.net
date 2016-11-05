@@ -1,4 +1,4 @@
-* Z:\home\winson\CanSat\UCSD-Cansat-2016-17\hardware\sim\sim1.asc
+* C:\Users\Lin Hein\UCSD-Cansat-2016-17\hardware\sim\sim1 saved plot.asc
 I1 0 N002 PULSE(0.01 500m 0 0.1 1m 1000 1000000)
 D2 N006 N001 d_schottky
 C1 N006 0 1
@@ -17,15 +17,17 @@ R5 N005 0 100
 D1 P003 P001 BZX84-A3V6
 D5 P004 P003 BZX84-A3V6
 D6 0 P004 BZX84-A3V6
+D7 N002 0 D_large
 .model D D
-.lib C:\Program Files (x86)\LTC\LTspiceIV\lib\cmp\standard.dio
+.lib C:\Users\Lin Hein\Documents\LTspiceXVII\lib\cmp\standard.dio
 .model NPN NPN
 .model PNP PNP
-.lib C:\Program Files (x86)\LTC\LTspiceIV\lib\cmp\standard.bjt
+.lib C:\Users\Lin Hein\Documents\LTspiceXVII\lib\cmp\standard.bjt
 .tran 120
 .lib opamp.sub
 .model d_schottky D(Ron=.1n Roff=1G Vfwd=0.2)
 .lib .\BZX84-A3V6.prm
+.model D_large D(Ron=.1n Roff=1G Vfwd=5)
 .lib .\lp38691_3p3_trans.lib
 .lib UniversalOpamps2.sub
 .backanno
