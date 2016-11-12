@@ -1,7 +1,7 @@
 * Z:\home\winson\CanSat\UCSD-Cansat-2016-17\hardware\sim\sim1.asc
 I1 0 N002 PULSE(0.01 400m 0 1m 1m 1000 1000000)
 D2 N004 highline d_schottky
-C1 N004 0 1
+C1 N004 0 0.1
 D3 0 ref BZX84-A3V6
 C2 highline 0 50µ
 C3 vout 0 50µ
@@ -15,13 +15,13 @@ R5 vout 0 50
 D7 N002 0 D_large
 Q1 highline N003 N004 0 NPN
 R1 N001 ref 100k
-I2 vout 0 PULSE(0 90m 20m 1m 1m 100m 200m 2)
+I2 vout 0 PULSE(0 410m 1 1m 1m 100m 200m 2)
 .model D D
 .lib C:\Program Files (x86)\LTC\LTspiceIV\lib\cmp\standard.dio
 .model NPN NPN
 .model PNP PNP
 .lib C:\Program Files (x86)\LTC\LTspiceIV\lib\cmp\standard.bjt
-.tran 0.2
+.tran 3
 .lib opamp.sub
 .model d_schottky D(Ron=.1n Roff=1G Vfwd=0.2)
 .lib .\BZX84-A3V6.prm
