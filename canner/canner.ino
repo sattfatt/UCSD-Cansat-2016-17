@@ -1,9 +1,22 @@
+#include <Adafruit_GPS.h>
+#include <Adafruit_SSD1306.h>
+
 #include <Wire.h>
 #include <LPS.h> 
 #include <LSM6.h>
 #include <LIS3MDL.h>
 #include "cannerdata.h"
 #include <SD.h>
+#include <Servo.h>
+#include <math.h>
+
+//------------MACROS--------------
+#define BUZZER_PIN 10
+#define SERVO_PIN 9
+#define SERVO_CLOSED 0
+#define LAUNCH_ACCEL_THRESH 5 //in g's
+//--------------------------------
+//-----------GLOBALS--------------
 
 LPS PTS; 
 LIS3MDL MAG;
@@ -13,9 +26,12 @@ Adafruit_GPS GPS(&gpsSerial); //need to use the address for the GPS serial
 HardwareSerial Xbee = Serial2; //calls class to send data to serial 2 for the xbee
 const int chipSelect = 4;
 
+Servo releaseServo;
 
 boolean usingInterrupt = true;
 void useInterrupt(boolean); 
+
+//--------------------------------
 
 
 void setup() {
@@ -47,6 +63,8 @@ MAG.enableDefault();
 GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
 GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); 
 
+releaseServo.attach(SERVO_PIN);
+
 }
 
 void getData(){
@@ -57,15 +75,13 @@ void getData(){
   candata.magx = MAG.m.x;
   candata.magy = MAG.m.y;
   candata.magz = MAG.m.z;
+  candata.accx = MAG.a.x;
+  candata.accy = MAG.a.y;
+  candata.accz = MAG.a.z;
   candata.gpsalt = GPS.altitude;
-  candata.latitude = GPS.lat;
-  candata.longitude = GPS.lon;
+  candata.lat = GPS.lat;
+  candata.lon = GPS.lon;
   candata.satnum = (int)GPS.satellites;
-
-  if 
-  
-   
-
 }
 void useInterrupt(boolean v) {
   if (v) {
@@ -133,4 +149,43 @@ void logdata(){
     Serial.println("error opening datalog.txt");
   } 
 }
+
+void buzzerOn(){
+  static bool ran = false;
+  if(ran == false){
+    digitalWrite(BUZZER_PIN,HIGH);
+    ran = true;
+  }
+}
+
+void buzzerOff(){
+  digitalWrite(BUZZER_PIN,LOW);
+}
+
+int servoControl(bool servostate){
+  if(servostate == false){
+    releaseServo.write(SERVO_CLOSED);
+  }
+  else{
+    releaseServo.write(SERVO_OPEN);
+  }
+  return releaseServo.read();
+}
+
+void state(){
+  if(candata.state == 0){
+    float netforce = sqrt(candata.accx^2+candata.accy^2+candata.accz^2)/9.8;
+    if(netforce >= LAUNCH_ACCEL_THRESH){
+      candata.state = 1; 
+    }
+  }
+  else if(candata.state == 1){
+    if
+  }
+}
+
+
+
+
+
 
