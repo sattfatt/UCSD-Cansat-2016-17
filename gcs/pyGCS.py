@@ -4,6 +4,7 @@ import multiprocessing
 # import Vector
 import time
 import serial
+import operator
 from multiprocessing import Queue as Q
 import Queue
 from multiprocessing import Process
@@ -12,6 +13,7 @@ from functools import partial
 import pyqtgraph as pg
 import numpy as np
 import pyqtgraph.opengl as gl
+import pyqtgraph.exporters
 import math
 from PIL import Image, ImageFile
 
@@ -564,12 +566,19 @@ class Ui_MainWindow(QMainWindow):
         return data
 
 
+
+
+
+
+
+
 class Backend():
     def __init__(self, ui):
         # super(Backend, self).__init__()
         self.ui = ui
         self.iniserial()
         self.inicommand()
+        self.inifilemmenu()
         global GraphParam
         GraphParam = ui.plots[0].name
         processstart(logger, (SERIAL_LOG_NAME, serialDataQ,), False)  # back
@@ -596,6 +605,7 @@ class Backend():
         self.fileparse = ui.fileparse
         self.imgPathSet = False  # back
         self.imgPath = ""  # back
+        self.plotobj = 0
 
     def plotloop(self):
         self.data = self.fileparse(SERIAL_LOG_NAME)
@@ -725,6 +735,9 @@ class Backend():
         self.ui.pushButtonSetPoints.clicked.connect(self.setaxisbool)
         self.ui.pushButtonImg.clicked.connect(self.loadimage)
         self.ui.pushButtonParam.clicked.connect(partial(self.paramsend, "p"))
+
+    def inifilemmenu(self):
+        self.ui.actionSave_Figure.triggered.connect(self.exportdialog)
 
     def serialcomms(self, port):
         try:
@@ -879,6 +892,10 @@ class Backend():
         pixmap = QtGui.QPixmap("tempimg.png")
         # arr = np.array(f.getdata())
         self.ui.imgView.setPixmap(pixmap)
+
+    def exportdialog(self):
+        self.exporter = pg.exporters.ImageExporter(self.ui.graphicsView.scene())
+        self.exporter.fileSaveDialog()
 
 
 class Graphics():  # can add functionality for inputting data to display
@@ -1081,4 +1098,5 @@ if __name__ == "__main__":
     G = Graphics(ui, B)
     oldstdout = sys.stdout
     sys.stdout = TermRedirect(ui.plainTextEditTerm, oldstdout)
+
     sys.exit(app.exec_())
