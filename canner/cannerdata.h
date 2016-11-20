@@ -15,6 +15,8 @@ typedef struct packet{
   float gpsalt = 0;
   int piccount = 0;
   int satnum = 0;
+  float vel = 0;
+  float netforce = 0;
   
   
 } data_s;

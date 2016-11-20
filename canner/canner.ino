@@ -10,17 +10,20 @@
 #include <Servo.h>
 #include <math.h>
 
+
 //------------MACROS--------------
 #define BUZZER_PIN 10
 #define SERVO_PIN 9
 #define SERVO_CLOSED 0
 #define LAUNCH_ACCEL_THRESH 5 //in g's
+#define LENGTH
+#define RELEASE_THRESH 400
 //--------------------------------
 //-----------GLOBALS--------------
 
 LPS PTS; 
 LIS3MDL MAG;
-data_s candata; 
+data_s candata[LENGTH]; 
 HardwareSerial gpsSerial = Serial1; //read and print from serial port 1 on the GPS
 Adafruit_GPS GPS(&gpsSerial); //need to use the address for the GPS serial
 HardwareSerial Xbee = Serial2; //calls class to send data to serial 2 for the xbee
@@ -30,6 +33,8 @@ Servo releaseServo;
 
 boolean usingInterrupt = true;
 void useInterrupt(boolean); 
+
+int pos = 0;
 
 //--------------------------------
 
@@ -67,21 +72,48 @@ releaseServo.attach(SERVO_PIN);
 
 }
 
-void getData(){
-  candata.pres = PTS.readPressureMillibars();
-  candata.temp = PTS.readTemperatureC();
-  candata.alt = PTS.pressureToAltitudeMeters(candata.pres);
+void getData(int pos){
+  candata[pos].pres = PTS.readPressureMillibars();
+  candata[pos].temp = PTS.readTemperatureC();
+  candata[pos].alt = PTS.pressureToAltitudeMeters(candata.pres);
   MAG.read();
-  candata.magx = MAG.m.x;
-  candata.magy = MAG.m.y;
-  candata.magz = MAG.m.z;
-  candata.accx = MAG.a.x;
-  candata.accy = MAG.a.y;
-  candata.accz = MAG.a.z;
-  candata.gpsalt = GPS.altitude;
-  candata.lat = GPS.lat;
-  candata.lon = GPS.lon;
-  candata.satnum = (int)GPS.satellites;
+  candata[pos].magx = MAG.m.x;
+  candata[pos].magy = MAG.m.y;
+  candata[pos].magz = MAG.m.z;
+  candata[pos].accx = MAG.a.x;
+  candata[pos].accy = MAG.a.y;
+  candata[pos].accz = MAG.a.z;
+  candata[pos].gpsalt = GPS.altitude;
+  candata[pos].lat = GPS.lat;
+  candata[pos].lon = GPS.lon;
+  candata[pos].satnum = (int)GPS.satellites;
+
+//  static bool ran == false;
+//  if(GPS.satellites>=5 && ran == false){
+//    gpsTime = GPS.hour*60*60*1000+GPS.minute*60*1000+GPS.seconds*1000;
+//    unsigned long timenow = millis();
+//    ran == true;
+//  }
+//  else gpsTime = 0;
+  
+  candata[pos].missiontime = gpsTime + millis()-timenow;
+
+  for(int i = 0; i<10;i++){
+    sum1 = 0;
+    sum2 = 0;
+    sum1+=candata[i].missiontime;
+    sum2+=candata[i].alt;
+  }
+  avgtime = sum1/LENGTH;
+  avgdist = sum2/LENGTH;
+  for (int i = 0; i<10; i++;){
+    num += (candata[i].missiontime - avgtime)*(candata[i].alt - avgdist);
+    den += pow(candata[i].missiontime - avgtime,2);
+  }
+  candata[pos].vel = num/den;
+  candata[pos].netforce = sqrt(candata[pos].accx^2+candata[pos].accy^2+candata[pos].accz^2)/9.8;
+  
+  
 }
 void useInterrupt(boolean v) {
   if (v) {
@@ -98,8 +130,11 @@ void useInterrupt(boolean v) {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-
+  freqLimiterGet(pos,.01,1);
+  pos++;
+  if(pos == 10){
+    pos = 0;
+  }
 }
 
 
@@ -172,15 +207,50 @@ int servoControl(bool servostate){
   return releaseServo.read();
 }
 
-void state(){
-  if(candata.state == 0){
-    float netforce = sqrt(candata.accx^2+candata.accy^2+candata.accz^2)/9.8;
-    if(netforce >= LAUNCH_ACCEL_THRESH){
-      candata.state = 1; 
+void state(pos){
+  if(candata[pos].state == 0 && candata[pos].netforce >= LAUNCH_ACCEL_THRESH){
+     candata[pos].state = 1; 
+  }
+  else if(candata[pos].state == 1){
+    if(candata[pos].alt<RELEASE_THRESH-10 && candata[pos].vel<0){
+      candata[pos].state=3
+    }
+    else if(candata[pos].alt>RELEASE_THRESH-10){
+      candata[pos].state = 2;
     }
   }
-  else if(candata.state == 1){
-    if
+  else if(candata[pos].state == 2 && candata[pos].vel<0 && candata[pos].alt <= RELEASE_THRESH + 10){
+    candata[pos].state = 3;
+  }
+  else if(candata[pos].state = 3){
+    servoControl(true);
+    buzzerOn();]
+  } 
+}
+
+void freqLimiterGet(int pos, int per, int tol){
+  static unsigned long last_send = 0;
+  this_send = millis();
+  if (this_send - last_send > .5*per)  {
+    if (this_send%1000 < tol*per/100. || this_send%1000 > (100-tol)*per/100)  {
+      last_send = this_send;
+      packet_count++;
+      getData(pos);
+      
+    }
+  }
+}
+
+void freqLimiterSend(int pos, int per, int tol){
+  static unsigned long last_send = 0;
+  this_send = millis();
+  if (this_send - last_send > .5*per)  {
+    if (this_send%1000 < tol*per/100. || this_send%1000 > (100-tol)*per/100)  {
+      last_send = this_send;
+      packet_count++;
+  
+      // sendData()
+    }
   }
 }
 
