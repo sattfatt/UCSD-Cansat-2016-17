@@ -17,6 +17,7 @@ typedef struct packet{
   int satnum = 0;
   float vel = 0;
   float netforce = 0;
+  unsigned long missiontime = 0;
   
   
 } data_s;
