@@ -11,10 +11,10 @@
 #include <LPS.h> 
 #include <LSM6.h>
 #include <LIS3MDL.h>
-#include "gliderdata.h"               // Header file with constants and parameters       
+#include "glider.h"               // Header file with constants and parameters       
 #include <SD.h>
 #include <math.h>
-
+#include <SparkFunDS1307RTC.h>
 //------------MACROS------------------
 #define BUZZER_PIN 10                 // Pin for turning buzzer on and off  
 #define DATA_BUFFER_LENGTH 10         // 
@@ -22,7 +22,7 @@
 #define PITOT_PIN 20                  // Pin for reading pitot pressure data
 #define PITOT_CAL 32                  // Calibration for the pitot tube
 #define VOLTAGE_PIN 18                // Pin for reading voltage values from solar panels  
-
+#define SQW_INPUT_PIN 23              // Pin for interrupting main loop with rtc square wave
 //-------------GLOBALS---------------
 LPS PTS; 
 LIS3MDL MAG;
@@ -49,6 +49,18 @@ void setup() {
 Serial.begin(9600); 
 
 Wire.begin();
+
+
+pinMode(SQW_INPUT_PIN, INPUT_PULLUP);
+rtc.begin();
+// enables square wave output
+rtc.writeSQW(SQW_SQUARE_1);
+// compiler time
+rtc.autoTime();
+
+// Interrupt setup
+attachInterrupt(digitalPinToInterrupt(SQW_INPUT_PIN),gsData,RISING);
+
 
 // Checck if PTS, MAG, ACC, and SD cards are initialized
 if(! PTS.init()){
@@ -93,7 +105,7 @@ pinMode(PITOT_PIN,INPUT);
 void getData(int pos){
   gliderdata[pos].pres = PTS.readPressureMillibars();
   gliderdata[pos].temp = PTS.readTemperatureC();
-  gliderdata[pos].alt = PTS.pressureToAltitudeMeters(candata[pos].pres);
+  gliderdata[pos].alt = PTS.pressureToAltitudeMeters(gliderdata[pos].pres);
   MAG.read();
   gliderdata[pos].magx = MAG.m.x;
   gliderdata[pos].magy = MAG.m.y;
@@ -144,14 +156,14 @@ void getData(int pos){
 //----------Pitot----------------
 
 // Read pitot values from the pin
-pitotRead = analogRead(PITOT_PIN);
+int pitotRead = analogRead(PITOT_PIN);
 
 // Calculate airspeed from conastants and equations
-gliderdata[pos].airspeed=sqrt(2000.*((((float)pitotRead-(float)PITOT_CAL/(0.2*1024.0))-2.5)/1.225);
+gliderdata[pos].airspeed=sqrt(2000.*((((float)pitotRead-(float)PITOT_CAL/(0.2*1024.0))-2.5)/1.225));
 
 // Check to see if airspeed is being read
 if(gliderdata[pos].airspeed != gliderdata[pos].airspeed){
-  glider[pos].airspeed = 0.0;
+  gliderdata[pos].airspeed = 0.0;
   //Serial.println("NAN"); 
 }
 
@@ -167,14 +179,17 @@ float ratio = 5/6;
 float rawVoltage = analogRead(VOLTAGE_PIN);
 
 // Map raw voltage data to 6V scale
-float voltage = map(rawVoltage, rawLow, rawHigh, voltageLow, voltageHigh);
+//float voltage = map(rawVoltage, rawLow, rawHigh, voltageLow, voltageHigh);
 
-gliderdata[pos].volt = voltage;
+//gliderdata[pos].volt = voltage;
 
 //---------PicCount-------------
 
 
 //gliderdata[pos].piccount=
+// rtc
+  rtc.update();
+
 }
 
 
@@ -184,19 +199,22 @@ gliderdata[pos].volt = voltage;
  * Interrupt function
  *******************************************************************************************/
 
-void useInterrupt(boolean v) {
-    if (v) {
-    // Timer0 is already used for millis() - we'll just interrupt somewhere
-    // in the middle and call the "Compare A" function above
-    OCR0A = 0xAF;
-    TIMSK0 |= _BV(OCIE0A);
-    usingInterrupt = true;
-  } else {
-    // do not call the interrupt function COMPA anymore
-    TIMSK0 &= ~_BV(OCIE0A);
-    usingInterrupt = false;
-  }
-}
+//void useInterrupt(boolean v) {
+//    if (v) {
+//    // Timer0 is already used for millis() - we'll just interrupt somewhere
+//    // in the middle and call the "Compare A" function above
+//    OCR0A = 0xAF;
+//    TIMSK0 |= _BV(OCIE0A);
+//    usingInterrupt = true;
+//  } else {
+//    // do not call the interrupt function COMPA anymore
+//    TIMSK0 &= ~_BV(OCIE0A);
+//    usingInterrupt = false;
+//  }
+//}
+
+
+
 
 /*********************************************************************************************
  * loop()
@@ -302,7 +320,7 @@ void buzzerOff(){
  ********************************************************************************************/
 
 void state(int pos){
-  if(gliderdata[pos].state == 0 && gliderdata[pos].alt =< ALT_THRESH){
+  if(gliderdata[pos].state == 0 && gliderdata[pos].alt <= ALT_THRESH){
      buzzerOn();
   }
 }
@@ -341,3 +359,10 @@ void freqLimiterSend(int pos, int per, int tol){
     }
   }
 }
+
+void gsData(){
+  getData(pos);
+  sendData(pos);
+}
+
+
