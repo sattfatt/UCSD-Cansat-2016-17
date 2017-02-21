@@ -31,7 +31,9 @@ data_s gliderdata[DATA_BUFFER_LENGTH];  //
 HardwareSerial gpsSerial = Serial1;     // Read and print from serial port 1 on the GPS
 Adafruit_GPS GPS(&gpsSerial);           // Need to use the address for the GPS serial
 HardwareSerial Xbee = Serial2;          // Calls class to send data to serial 2 for the xbee
-const int chipSelect = 4;                
+HardwareSerial camera = Serial3;        // Camera serial port
+Adafruit_VC0706 cam = Adafruit_VC0706(&camera); // instantiate cam object
+const int chipSelect = 15;              // Select pin for SD card reader  
 int packet_count = 0;                   // Initialize packet count as zero 
 boolean usingInterrupt = true;          // Initialize the interupt function as true
 void useInterrupt(boolean);             // Define useInterrrupt function with boolean input
@@ -45,54 +47,60 @@ int pos = 0;                            // Initialize pos vector at 0
 
 void setup() {
 
-// Intialize Serial monitor at 9600 bps 
-Serial.begin(9600); 
-
-Wire.begin();
-
-
-pinMode(SQW_INPUT_PIN, INPUT_PULLUP);
-rtc.begin();
-// enables square wave output
-rtc.writeSQW(SQW_SQUARE_1);
-// compiler time
-rtc.autoTime();
-
-// Interrupt setup
-attachInterrupt(digitalPinToInterrupt(SQW_INPUT_PIN),gsData,RISING);
-
-
-// Checck if PTS, MAG, ACC, and SD cards are initialized
-if(! PTS.init()){
-  Serial.println("Pressure and temperature sensor failed to initialize");
-}
-if(! MAG.init()){
-  Serial.println("Magnetometer sensor failed to initialize");
-}
-if(! ACC.init()){
-  Serial.println("Accelerometer failed to initialize");
-}
-  Serial.print("Initializing SD card...");
-  // make sure that the default chip select pin is set to
-  // output, even if you don't use it:
-  pinMode(10, OUTPUT);
+  // Intialize Serial monitor at 9600 bps 
+  Serial.begin(9600); 
   
-  // see if the card is present and can be initialized:
-if (!SD.begin(chipSelect)) {
+  Wire.begin();
+  
+  
+  pinMode(SQW_INPUT_PIN, INPUT_PULLUP);
+  rtc.begin();
+  // enables square wave output
+  rtc.writeSQW(SQW_SQUARE_1);
+  // compiler time
+  rtc.autoTime();
+
+  // Cam setup
+  if (cam.begin()) Serial.println("Camera Found!");
+  else {
+    Serial.println("Camera not found");
+    while(1);
+  }
+ 
+  // Checck if PTS, MAG, ACC, and SD cards are initialized
+  if (! PTS.init()){
+    Serial.println("Pressure and temperature sensor failed to initialize");
+  }
+  if (! MAG.init()){
+    Serial.println("Magnetometer sensor failed to initialize");
+  }
+  if (! ACC.init()){
+    Serial.println("Accelerometer failed to initialize");
+  }
+    Serial.print("Initializing SD card...");
+    // make sure that the default chip select pin is set to
+    // output, even if you don't use it:
+    pinMode(10, OUTPUT);
+    
+    // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
     Serial.println("Card failed, or not present");
     // don't do anything more:
     return;
-}
+  }
   Serial.println("card initialized.");
+  
+  // Enable default settings for PTS, MAG, and GPS
+  PTS.enableDefault();
+  MAG.enableDefault();
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); 
+  
+  // Set PITOT_PIN as an input
+  pinMode(PITOT_PIN,INPUT);
 
-// Enable default settings for PTS, MAG, and GPS
-PTS.enableDefault();
-MAG.enableDefault();
-GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
-GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); 
-
-// Set PITOT_PIN as an input
-pinMode(PITOT_PIN,INPUT);
+  // Interrupt setup
+  attachInterrupt(digitalPinToInterrupt(SQW_INPUT_PIN),gsData,RISING);
 }
 
 /********************************************************************************************
@@ -118,7 +126,7 @@ void getData(int pos){
   gliderdata[pos].lon = GPS.lon;
   gliderdata[pos].satnum = (int)GPS.satellites;
    
-//---------RTC----------------
+//---------GPS TIME KEEPING NOT NEEDED----------------
 //  static bool ran == false;
 //  if(GPS.satellites>=5 && ran == false){
 //    gpsTime = GPS.hour*60*60*1000+GPS.minute*60*1000+GPS.seconds*1000;
@@ -152,42 +160,42 @@ void getData(int pos){
   gliderdata[pos].netforce = sqrt(pow(candata[pos].accx,2)+pow(candata[pos].accy,2)+pow(candata[pos].accz,2))/9.8;
 //-----------------------------  
 }*/
-
-//----------Pitot----------------
-
-// Read pitot values from the pin
-int pitotRead = analogRead(PITOT_PIN);
-
-// Calculate airspeed from conastants and equations
-gliderdata[pos].airspeed=sqrt(2000.*((((float)pitotRead-(float)PITOT_CAL/(0.2*1024.0))-2.5)/1.225));
-
-// Check to see if airspeed is being read
-if(gliderdata[pos].airspeed != gliderdata[pos].airspeed){
-  gliderdata[pos].airspeed = 0.0;
-  //Serial.println("NAN"); 
-}
-
-//----------Voltage--------------
-
-// 0-614.4 assuming dividing to half 6V * Ratio -> ADC
-// R1 = 10k, R2 = 1k + 1k
-
-// Define ratio
-float ratio = 5/6;
-
-// Read raw data from voltage pin
-float rawVoltage = analogRead(VOLTAGE_PIN);
-
-// Map raw voltage data to 6V scale
-//float voltage = map(rawVoltage, rawLow, rawHigh, voltageLow, voltageHigh);
-
-//gliderdata[pos].volt = voltage;
-
-//---------PicCount-------------
-
-
-//gliderdata[pos].piccount=
-// rtc
+  
+  //----------Pitot----------------
+  
+  // Read pitot values from the pin
+  int pitotRead = analogRead(PITOT_PIN);
+  
+  // Calculate airspeed from conastants and equations
+  gliderdata[pos].airspeed=sqrt(2000.*((((float)pitotRead-(float)PITOT_CAL/(0.2*1024.0))-2.5)/1.225));
+  
+  // Check to see if airspeed is being read
+  if(gliderdata[pos].airspeed != gliderdata[pos].airspeed){
+    gliderdata[pos].airspeed = 0.0;
+    //Serial.println("NAN"); 
+  }
+  
+  //----------Main power bus Voltage--------------
+  
+  // 0-614.4 assuming dividing to half 6V * Ratio -> ADC
+  // R1 = 10k, R2 = 1k + 1k
+  
+  // Define ratio
+  float ratio = 5/6;
+  
+  // Read raw data from voltage pin
+  float rawVoltage = analogRead(VOLTAGE_PIN);
+  
+  // Map raw voltage data to 6V scale
+  //float voltage = map(rawVoltage, rawLow, rawHigh, voltageLow, voltageHigh);
+  
+  //gliderdata[pos].volt = voltage;
+  
+  //---------PicCount-------------
+  
+  
+  //gliderdata[pos].piccount=
+  // rtc
   rtc.update();
 
 }
@@ -360,9 +368,61 @@ void freqLimiterSend(int pos, int per, int tol){
   }
 }
 
+/*********************************************************************************************
+ * gsData()
+ * 
+ * ISR that will run on every SQW rising edge on SQW input pin
+ ********************************************************************************************/
 void gsData(){
   getData(pos);
   sendData(pos);
 }
 
+/*********************************************************************************************
+ * snapLog()
+ * 
+ * Function that snaps a picture and logs it to SD card
+ ********************************************************************************************/
+
+void snapLog(){
+  cam.setImageSize(VC0706_640x480);       // Set image size
+  
+  if (! cam.takePicture())                // Take picture and determine if image fails to capture
+    Serial.println("Failed to snap!");    
+  else 
+    Serial.println("Picture taken!");
+  
+  char fileName[13];                      // Create a file name array
+  
+  strcpy(filename, "IMAGE00.JPG");        // Keep changing the numbers until we find a unique file name
+  for (int i = 0; i < 100; i++) {
+    filename[5] = '0' + i/10;
+    filename[6] = '0' + i%10;
+    if (! SD.exists(filename)) {
+      break;
+    }
+  }
+
+  File imgFile = SD.open(filename, FILE_WRITE); // Open file for writing
+
+  uint16_t jpglen = cam.frameLength();    // Get size of picture on camera
+  uint16_t len = jpglen;               
+//  Serial.print("Storing ");
+//  Serial.print(jpglen, DEC);
+//  Serial.print(" byte image.");
+  byte wCount = 0;                        // For counting # of writes
+  while (jpglen > 0) {                    // Start looping over bytes to read from cam
+    // read 32 bytes at a time;
+    uint8_t *buffer;                      // create buffer for reading into
+    uint8_t bytesToRead = min(64, jpglen); // determine how many bytes to read at a time
+    buffer = cam.readPicture(bytesToRead); // point buffer to where bytes were read
+    imgFile.write(buffer, bytesToRead);   // write buffer to the image file on sd card
+    if(++wCount >= 64) {                  // Keep track of write count
+      //Serial.print('.');
+      wCount = 0;
+    }
+    jpglen -= bytesToRead;                // sub out bytes read
+  }
+  imgFile.close();                        // close file when finished logging  
+}
 
