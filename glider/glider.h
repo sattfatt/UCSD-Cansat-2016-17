@@ -27,6 +27,7 @@ typedef struct packet{
   unsigned long missiontime = 0;
   float volt = 0;
   int packetcount = 0;
+  float headingAngle = 0;
     
 } data_s;
 

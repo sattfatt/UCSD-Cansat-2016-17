@@ -15,6 +15,7 @@
 #include <SD.h>
 #include <math.h>
 #include <SparkFunDS1307RTC.h>
+#include "calculations.h"
 
 
 //------------MACROS------------------
@@ -41,6 +42,8 @@ const int chipSelect = 15;              // Select pin for SD card reader
 boolean usingInterrupt = true;          // Initialize the interupt function as true
 void useInterrupt(boolean);             // Define useInterrrupt function with boolean input
 int pos = 0;                            // Initialize pos vector at 0  
+int packetcount = 0;                    // Initialize packet count
+float del = 11;                         // declination angle for heading angle calculation
 
 /********************************************************************************************
  * Setup function()
@@ -55,7 +58,7 @@ void setup() {
   
   Wire.begin();
   
-  
+  delay(5000);
   pinMode(SQW_INPUT_PIN, INPUT_PULLUP);
   rtc.begin();
   // enables square wave output
@@ -67,7 +70,7 @@ void setup() {
   if (cam.begin()) Serial.println("Camera Found!");
   else {
     Serial.println("Camera not found");
-    while(1);
+    //while(1);
   }
  
   // Checck if PTS, MAG, ACC, and SD cards are initialized
@@ -128,7 +131,7 @@ void getData(int pos){
   gliderdata[pos].lat = GPS.lat;
   gliderdata[pos].lon = GPS.lon;
   gliderdata[pos].satnum = (int)GPS.satellites;
-   
+  gliderdata[pos].headingAngle = headingCalc(ACC.a.x,  ACC.a.y,  ACC.a.z,  MAG.m.x,  MAG.m.y,  MAG.m.z,del); 
 //---------GPS TIME KEEPING NOT NEEDED----------------
 //  static bool ran == false;
 //  if(GPS.satellites>=5 && ran == false){
@@ -201,6 +204,9 @@ void getData(int pos){
   // rtc
   rtc.update();
 
+  //--------Heading Calculation-----------------
+  //ACC.a.x ACC.a.y ACC.a.z MAG.m.x MAG.m.y MAG.m.z
+
 }
 
 
@@ -234,13 +240,16 @@ void getData(int pos){
  ********************************************************************************************/
 
 void loop() {
-  freqLimiterGet(pos,.01,1);
-  state(pos);
-  freqLimiterSend(pos,1,1);
-  pos++;
-  if(pos == DATA_BUFFER_LENGTH){
-    pos = 0;
-  }
+//  freqLimiterGet(pos,.01,1);
+//  state(pos);
+//  freqLimiterSend(pos,1,1);
+//  pos++;
+//  if(pos == DATA_BUFFER_LENGTH){
+//    pos = 0;
+//  }
+  MAG.read();
+  Serial.println(headingCalc(ACC.a.x,  ACC.a.y,  ACC.a.z,  MAG.m.x,  MAG.m.y,  MAG.m.z,del));
+  delay(1);
 }
 
 /*********************************************************************************************
@@ -280,14 +289,14 @@ void logdata(int pos){
     //telemetry requirements
     dataFile.print("3156"); dataFile.print(",");
     dataFile.print("GLIDER"); dataFile.print(",");
-    dataFile.print(rtc.hour);dataFile.print(":");dataFile.print("rtc.minute");dataFile.print(":");dataFile.print(rtc.second)
-    dataFile.print(packetcount);dataFile.print(",";)
+    dataFile.print(rtc.hour());dataFile.print(":");dataFile.print(rtc.minute());dataFile.print(":");dataFile.print(rtc.second()); dataFile.print(",");
+    dataFile.print(packetcount);dataFile.print(",");
     dataFile.print(gliderdata[pos].alt); dataFile.print(",");
     dataFile.print(gliderdata[pos].pres); dataFile.print(",");
     dataFile.print(gliderdata[pos].airspeed); dataFile.print(",");
     dataFile.print(gliderdata[pos].temp); dataFile.print(",");
     dataFile.print(gliderdata[pos].volt); dataFile.print(",");
-    //heading here
+    dataFile.print(gliderdata[pos].headingAngle); dataFile.print(",");
     dataFile.print(gliderdata[pos].state);dataFile.print(",");
     dataFile.print(gliderdata[pos].piccount); dataFile.println();
     
