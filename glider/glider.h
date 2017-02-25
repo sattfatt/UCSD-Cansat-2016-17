@@ -26,6 +26,7 @@ typedef struct packet{
   float netforce = 0;
   unsigned long missiontime = 0;
   float volt = 0;
+  int packetcount = 0;
     
 } data_s;
 

@@ -11,7 +11,7 @@
 #include <LPS.h> 
 #include <LSM6.h>
 #include <LIS3MDL.h>
-#include "glider.h"               // Header file with constants and parameters       
+#include "glider.h"                   // Header file with constants and parameters       
 #include <SD.h>
 #include <math.h>
 #include <SparkFunDS1307RTC.h>
@@ -34,7 +34,6 @@ HardwareSerial Xbee = Serial2;          // Calls class to send data to serial 2 
 HardwareSerial camera = Serial3;        // Camera serial port
 Adafruit_VC0706 cam = Adafruit_VC0706(&camera); // instantiate cam object
 const int chipSelect = 15;              // Select pin for SD card reader  
-int packet_count = 0;                   // Initialize packet count as zero 
 boolean usingInterrupt = true;          // Initialize the interupt function as true
 void useInterrupt(boolean);             // Define useInterrrupt function with boolean input
 int pos = 0;                            // Initialize pos vector at 0  
@@ -247,20 +246,23 @@ void loop() {
  ********************************************************************************************/
 
 void sendData(int pos){
-  Xbee.print(gliderdata[pos].state); Xbee.print(",");
-  Xbee.print(gliderdata[pos].pres); //print uses ASCII format (Serial.Write uses values instead of ASCII)
-  Xbee.print(",");
-  Xbee.print(gliderdata[pos].temp);Xbee.print(",");
+  Xbee.print("3156"); Xbee.print(",");
+  Xbee.print("GLIDER"); Xbee.print(",");
+  Xbee.print(rtc.hour()); Xbee.print(":"); Xbee.print(rtc.minute()); Xbee.print(":"); Xbee.print(rtc.second()); Xbee.print(","); 
+  Xbee.print(packetcount); Xbee.print(",");
   Xbee.print(gliderdata[pos].alt);Xbee.print(",");
-  Xbee.print(gliderdata[pos].airspeed);Xbee.print(",");
+  Xbee.print(gliderdata[pos].pres); Xbee.print(",");        //print uses ASCII format (Serial.Write uses values instead of ASCII)
+  Xbee.print(gliderdata[pos].airspeed);Xbee.print(",");  
+  Xbee.print(gliderdata[pos].temp);Xbee.print(",");
+  Xbee.print(gliderdata[pos].volt);Xbee.print(",");
   Xbee.print(gliderdata[pos].magx);Xbee.print(",");
   Xbee.print(gliderdata[pos].magy);Xbee.print(",");
   Xbee.print(gliderdata[pos].magz);Xbee.print(",");
+  Xbee.print(gliderdata[pos].state); Xbee.print(",");
+  Xbee.print(gliderdata[pos].piccount);Xbee.print(",");    
   Xbee.print(gliderdata[pos].lat);Xbee.print(",");
-  Xbee.print(gliderdata[pos].lon);Xbee.print(",");
-  Xbee.print(gliderdata[pos].volt);Xbee.print(",");
-  Xbee.print(gliderdata[pos].gpsalt);Xbee.print(",");
-  Xbee.print(gliderdata[pos].piccount);Xbee.println();
+  Xbee.print(gliderdata[pos].lon);Xbee.println("");
+  packetcount++; 
 }
 
 /*********************************************************************************************
@@ -392,7 +394,7 @@ void snapLog(){
   else 
     Serial.println("Picture taken!");
   
-  char fileName[13];                      // Create a file name array
+  char filename[13];                      // Create a file name array
   
   strcpy(filename, "IMAGE00.JPG");        // Keep changing the numbers until we find a unique file name
   for (int i = 0; i < 100; i++) {
