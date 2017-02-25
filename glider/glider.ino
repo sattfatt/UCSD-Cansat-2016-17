@@ -15,6 +15,8 @@
 #include <SD.h>
 #include <math.h>
 #include <SparkFunDS1307RTC.h>
+
+
 //------------MACROS------------------
 #define BUZZER_PIN 10                 // Pin for turning buzzer on and off  
 #define DATA_BUFFER_LENGTH 10         // 
@@ -23,18 +25,19 @@
 #define PITOT_CAL 32                  // Calibration for the pitot tube
 #define VOLTAGE_PIN 18                // Pin for reading voltage values from solar panels  
 #define SQW_INPUT_PIN 23              // Pin for interrupting main loop with rtc square wave
+
 //-------------GLOBALS---------------
 LPS PTS; 
 LIS3MDL MAG;
 LSM6 ACC;                       
 data_s gliderdata[DATA_BUFFER_LENGTH];  //
+
 HardwareSerial gpsSerial = Serial1;     // Read and print from serial port 1 on the GPS
 Adafruit_GPS GPS(&gpsSerial);           // Need to use the address for the GPS serial
 HardwareSerial Xbee = Serial2;          // Calls class to send data to serial 2 for the xbee
 HardwareSerial camera = Serial3;        // Camera serial port
 Adafruit_VC0706 cam = Adafruit_VC0706(&camera); // instantiate cam object
 const int chipSelect = 15;              // Select pin for SD card reader  
-int packet_count = 0;                   // Initialize packet count as zero 
 boolean usingInterrupt = true;          // Initialize the interupt function as true
 void useInterrupt(boolean);             // Define useInterrrupt function with boolean input
 int pos = 0;                            // Initialize pos vector at 0  
@@ -274,19 +277,28 @@ void logdata(int pos){
 
   // if the file is available, write to it:
   if (dataFile) {
+    //telemetry requirements
+    dataFile.print("3156"); dataFile.print(",");
+    dataFile.print("GLIDER"); dataFile.print(",");
+    dataFile.print(rtc.hour);dataFile.print(":");dataFile.print("rtc.minute");dataFile.print(":");dataFile.print(rtc.second)
+    dataFile.print(packetcount);dataFile.print(",";)
     dataFile.print(gliderdata[pos].alt); dataFile.print(",");
-    dataFile.print(gliderdata[pos].temp); dataFile.print(",");
-    dataFile.print(gliderdata[pos].state);dataFile.print(",");
     dataFile.print(gliderdata[pos].pres); dataFile.print(",");
     dataFile.print(gliderdata[pos].airspeed); dataFile.print(",");
+    dataFile.print(gliderdata[pos].temp); dataFile.print(",");
+    dataFile.print(gliderdata[pos].volt); dataFile.print(",");
+    //heading here
+    dataFile.print(gliderdata[pos].state);dataFile.print(",");
+    dataFile.print(gliderdata[pos].piccount); dataFile.println();
+    
+    //extra data logged
     dataFile.print(gliderdata[pos].magx); dataFile.print(",");
     dataFile.print(gliderdata[pos].magy); dataFile.print(",");
     dataFile.print(gliderdata[pos].magz); dataFile.print(",");
     dataFile.print(gliderdata[pos].lat); dataFile.print(",");
     dataFile.print(gliderdata[pos].lon); dataFile.print(",");
-    dataFile.print(gliderdata[pos].gpsalt); dataFile.print(",");
-    dataFile.print(gliderdata[pos].volt); dataFile.print(",");
-    dataFile.print(gliderdata[pos].piccount); dataFile.println();
+    dataFile.print(gliderdata[pos].gpsalt); dataFile.println(",");
+    packetcount++;
     dataFile.close();
   }  
   // if the file isn't open, pop up an error:
@@ -392,7 +404,7 @@ void snapLog(){
   else 
     Serial.println("Picture taken!");
   
-  char fileName[13];                      // Create a file name array
+  char filename[13];                      // Create a file name array
   
   strcpy(filename, "IMAGE00.JPG");        // Keep changing the numbers until we find a unique file name
   for (int i = 0; i < 100; i++) {
