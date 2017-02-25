@@ -11,7 +11,7 @@
 #include <LPS.h> 
 #include <LSM6.h>
 #include <LIS3MDL.h>
-#include "glider.h"               // Header file with constants and parameters       
+#include "glider.h"                   // Header file with constants and parameters       
 #include <SD.h>
 #include <math.h>
 #include <SparkFunDS1307RTC.h>
@@ -250,20 +250,23 @@ void loop() {
  ********************************************************************************************/
 
 void sendData(int pos){
-  Xbee.print(gliderdata[pos].state); Xbee.print(",");
-  Xbee.print(gliderdata[pos].pres); //print uses ASCII format (Serial.Write uses values instead of ASCII)
-  Xbee.print(",");
-  Xbee.print(gliderdata[pos].temp);Xbee.print(",");
+  Xbee.print("3156"); Xbee.print(",");
+  Xbee.print("GLIDER"); Xbee.print(",");
+  Xbee.print(rtc.hour()); Xbee.print(":"); Xbee.print(rtc.minute()); Xbee.print(":"); Xbee.print(rtc.second()); Xbee.print(","); 
+  Xbee.print(packetcount); Xbee.print(",");
   Xbee.print(gliderdata[pos].alt);Xbee.print(",");
-  Xbee.print(gliderdata[pos].airspeed);Xbee.print(",");
+  Xbee.print(gliderdata[pos].pres); Xbee.print(",");        //print uses ASCII format (Serial.Write uses values instead of ASCII)
+  Xbee.print(gliderdata[pos].airspeed);Xbee.print(",");  
+  Xbee.print(gliderdata[pos].temp);Xbee.print(",");
+  Xbee.print(gliderdata[pos].volt);Xbee.print(",");
   Xbee.print(gliderdata[pos].magx);Xbee.print(",");
   Xbee.print(gliderdata[pos].magy);Xbee.print(",");
   Xbee.print(gliderdata[pos].magz);Xbee.print(",");
+  Xbee.print(gliderdata[pos].state); Xbee.print(",");
+  Xbee.print(gliderdata[pos].piccount);Xbee.print(",");    
   Xbee.print(gliderdata[pos].lat);Xbee.print(",");
-  Xbee.print(gliderdata[pos].lon);Xbee.print(",");
-  Xbee.print(gliderdata[pos].volt);Xbee.print(",");
-  Xbee.print(gliderdata[pos].gpsalt);Xbee.print(",");
-  Xbee.print(gliderdata[pos].piccount);Xbee.println();
+  Xbee.print(gliderdata[pos].lon);Xbee.println("");
+  packetcount++; 
 }
 
 /*********************************************************************************************
