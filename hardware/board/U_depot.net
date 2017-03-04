@@ -1,7 +1,7 @@
 (export (version D)
   (design
     (source "C:/Users/Lin Hein/UCSD-Cansat-2016-17/hardware/board/U_depot.sch")
-    (date "2/25/2017 1:30:04 PM")
+    (date "3/4/2017 11:28:14 AM")
     (tool "Eeschema 4.0.5")
     (sheet (number 1) (name /) (tstamps /)
       (title_block
@@ -17,7 +17,7 @@
   (components
     (comp (ref D1)
       (value LSM115JE3/TR13)
-      (footprint Diodes_SMD:D_SMC_Standard)
+      (footprint Diodes_SMD:D_SMB_Handsoldering)
       (libsource (lib device) (part D_Schottky))
       (sheetpath (names /) (tstamps /))
       (tstamp 5883CF6D))
@@ -55,7 +55,7 @@
       (tstamp 5883D158))
     (comp (ref D3)
       (value LSM115JE3/TR13)
-      (footprint Diodes_SMD:D_SMC_Standard)
+      (footprint Diodes_SMD:D_SMB_Handsoldering)
       (fields
         (field (name "Part Number") LSM115JE3/TR13))
       (libsource (lib device) (part D_Schottky))
@@ -275,12 +275,12 @@
         (pin (num 1) (name K) (type passive))
         (pin (num 2) (name A) (type passive)))))
   (libraries
-    (library (logical device)
-      (uri "C:\\Program Files\\KiCad\\share\\kicad\\library\\device.lib"))
     (library (logical conn)
       (uri "C:\\Program Files\\KiCad\\share\\kicad\\library\\conn.lib"))
     (library (logical linear)
       (uri "C:\\Program Files\\KiCad\\share\\kicad\\library\\linear.lib"))
+    (library (logical device)
+      (uri "C:\\Program Files\\KiCad\\share\\kicad\\library\\device.lib"))
     (library (logical U_depot-cache)
       (uri "C:\\Users\\Lin Hein\\UCSD-Cansat-2016-17\\hardware\\board\\U_depot-cache.lib")))
   (nets
